@@ -697,7 +697,7 @@ export default function ProductsAdmin() {
         visible={toastVisible}
         message={toastMessage}
         type={toastType}
-        onHide={() => setToastVisible(false)}
+        onDismiss={() => setToastVisible(false)}
       />
     </SafeAreaView>
   );
