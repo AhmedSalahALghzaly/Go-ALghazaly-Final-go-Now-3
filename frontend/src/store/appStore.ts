@@ -118,6 +118,7 @@ interface AppState {
   sessionToken: string | null;
   isAuthenticated: boolean;
   userRole: UserRole;
+  _hasHydrated: boolean;
   
   // UI State
   theme: 'light' | 'dark';
