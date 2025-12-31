@@ -23,6 +23,13 @@ export interface CartItemData {
   productId: string;
   quantity: number;
   product?: any;
+  // Bundle support
+  bundleGroupId?: string;
+  bundleOfferId?: string;
+  bundleOfferName?: string;
+  bundleDiscount?: number;
+  originalPrice?: number;
+  discountedPrice?: number;
 }
 
 export interface Notification {
