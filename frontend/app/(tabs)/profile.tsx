@@ -208,6 +208,36 @@ export default function ProfileScreen() {
               color={colors.textSecondary} 
             />
           </TouchableOpacity>
+
+          {/* Owner Dashboard Access - Only for authorized users */}
+          {canAccessOwner && (
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push('/owner')}
+            >
+              <View style={styles.menuLeft}>
+                <LinearGradient
+                  colors={['#6366F1', '#8B5CF6', '#A855F7']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.menuIcon, { borderRadius: 11 }]}
+                >
+                  <Ionicons name="diamond" size={20} color="#FFF" />
+                </LinearGradient>
+                <View>
+                  <Text style={[styles.menuText, { color: colors.text }]}>
+                    {language === 'ar' ? 'لوحة المالك' : 'Owner Dashboard'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#8B5CF6', marginTop: 2 }}>
+                    {isOwner ? (language === 'ar' ? 'مالك' : 'Owner') : (language === 'ar' ? 'شريك' : 'Partner')}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.ownerBadge}>
+                <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Settings Section */}
