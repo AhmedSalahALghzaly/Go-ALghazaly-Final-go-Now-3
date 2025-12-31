@@ -52,11 +52,10 @@ export const Header: React.FC<HeaderProps> = ({
   const currentMood = useAppStore((state) => state.currentMood);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  // State for search, notifications, and mood switcher
+  // State for search, notifications (mood switcher removed)
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [showMoodSwitcher, setShowMoodSwitcher] = useState(false);
 
   // Header is always white background
   const headerBgColor = '#FFFFFF';
