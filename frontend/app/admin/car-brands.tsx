@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Activi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { carBrandsApi } from '../../src/services/api';
 import { Header } from '../../src/components/Header';
+import { ImageUploader } from '../../src/components/ui/ImageUploader';
+import { Toast } from '../../src/components/ui/FormFeedback';
 
 export default function CarBrandsAdmin() {
   const { colors } = useTheme();
