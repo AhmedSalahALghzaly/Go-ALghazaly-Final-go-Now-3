@@ -46,6 +46,10 @@ export const Header: React.FC<HeaderProps> = ({
   const user = useAppStore((state) => state.user);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
+  // State for search and notifications
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
   // Header is always white background
   const headerBgColor = '#FFFFFF';
   const headerTextColor = '#1a1a2e';
