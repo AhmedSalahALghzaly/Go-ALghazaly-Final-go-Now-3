@@ -1,111 +1,137 @@
-diff --git a/frontend/src/store/appStore.ts b/frontend/src/store/appStore.ts
-index bd5ce58..597d264 100644
---- a/frontend/src/store/appStore.ts
-+++ b/frontend/src/store/appStore.ts
-@@ -293,22 +293,39 @@ export const useAppStore = create<AppState>()(
-       setLastSyncTime: (time) => set({ lastSyncTime: time }),
+diff --git a/frontend/app/admin/index.tsx b/frontend/app/admin/index.tsx
+index 8725c46..f76c1f0 100644
+--- a/frontend/app/admin/index.tsx
++++ b/frontend/app/admin/index.tsx
+@@ -7,6 +7,7 @@ import { useTheme } from '../../src/hooks/useTheme';
+ import { useTranslation } from '../../src/hooks/useTranslation';
+ import { useAppStore } from '../../src/store/appStore';
+ import { Header } from '../../src/components/Header';
++import { AdminPerformanceDashboard } from '../../src/components/AdminPerformanceDashboard';
  
-       // Cart Actions
--      addToCart: (productId, quantity = 1) => {
-+      addToCart: (item, quantity = 1) => {
-         const { cartItems } = get();
--        const existingIndex = cartItems.findIndex((item) => item.productId === productId);
--
--        if (existingIndex >= 0) {
--          const updated = [...cartItems];
--          updated[existingIndex].quantity += quantity;
--          set({ cartItems: updated });
-+        
-+        // Handle both string (productId) and full CartItemData object
-+        if (typeof item === 'string') {
-+          const productId = item;
-+          const existingIndex = cartItems.findIndex((ci) => ci.productId === productId && !ci.bundleGroupId);
-+          if (existingIndex >= 0) {
-+            const updated = [...cartItems];
-+            updated[existingIndex].quantity += quantity;
-+            set({ cartItems: updated });
-+          } else {
-+            set({ cartItems: [...cartItems, { productId, quantity }] });
-+          }
-         } else {
--          set({ cartItems: [...cartItems, { productId, quantity }] });
-+          // Full CartItemData object (for bundle items)
-+          const cartItem = item as CartItemData;
-+          const existingIndex = cartItems.findIndex(
-+            (ci) => ci.productId === cartItem.productId && ci.bundleGroupId === cartItem.bundleGroupId
-+          );
-+          if (existingIndex >= 0) {
-+            const updated = [...cartItems];
-+            updated[existingIndex].quantity += cartItem.quantity || 1;
-+            set({ cartItems: updated });
-+          } else {
-+            set({ cartItems: [...cartItems, { ...cartItem, quantity: cartItem.quantity || 1 }] });
-+          }
-         }
-       },
+ const ADMIN_EMAILS = [
+   'ahmed.salah.ghazaly.91@gmail.com',
+@@ -77,6 +78,8 @@ export default function AdminPanel() {
+           </View>
+         </View>
  
-       addToLocalCart: (item) => {
-         const { cartItems } = get();
--        const existingIndex = cartItems.findIndex((ci) => ci.productId === item.product_id);
-+        const existingIndex = cartItems.findIndex((ci) => ci.productId === item.product_id && !ci.bundleGroupId);
- 
-         if (existingIndex >= 0) {
-           const updated = [...cartItems];
-@@ -325,6 +342,11 @@ export const useAppStore = create<AppState>()(
-       updateCartItem: (productId, quantity) => {
-         const { cartItems } = get();
-         if (quantity <= 0) {
-+          // Check if it's a bundle item and void the bundle
-+          const item = cartItems.find((i) => i.productId === productId);
-+          if (item?.bundleGroupId) {
-+            get().voidBundleDiscount(item.bundleGroupId);
-+          }
-           set({ cartItems: cartItems.filter((item) => item.productId !== productId) });
-         } else {
-           set({
-@@ -335,14 +357,43 @@ export const useAppStore = create<AppState>()(
-         }
-       },
- 
--      removeFromCart: (productId) => {
--        set({ cartItems: get().cartItems.filter((item) => item.productId !== productId) });
-+      removeFromCart: (productId, voidBundle = true) => {
-+        const { cartItems } = get();
-+        const itemToRemove = cartItems.find((item) => item.productId === productId);
-+        
-+        // If item is part of a bundle and voidBundle is true, void the entire bundle discount
-+        if (itemToRemove?.bundleGroupId && voidBundle) {
-+          get().voidBundleDiscount(itemToRemove.bundleGroupId);
-+        }
-+        
-+        set({ cartItems: cartItems.filter((item) => item.productId !== productId) });
-       },
- 
-       clearCart: () => set({ cartItems: [] }),
- 
-       getCartTotal: () => get().cartItems.reduce((total, item) => total + item.quantity, 0),
- 
-+      // Void bundle discount - removes discount from all items in the bundle
-+      voidBundleDiscount: (bundleGroupId) => {
-+        const { cartItems } = get();
-+        const updatedItems = cartItems.map((item) => {
-+          if (item.bundleGroupId === bundleGroupId) {
-+            // Remove bundle info and restore original price
-+            return {
-+              ...item,
-+              bundleGroupId: undefined,
-+              bundleOfferId: undefined,
-+              bundleOfferName: undefined,
-+              bundleDiscount: undefined,
-+              discountedPrice: undefined,
-+              // Keep originalPrice as the actual price now
-+            };
-+          }
-+          return item;
-+        });
-+        set({ cartItems: updatedItems });
-+      },
++        <AdminPerformanceDashboard />
 +
-       // Notification Actions
-       addNotification: (notification) => {
-         const { notifications } = get();
+         <View style={styles.sectionsContainer}>
+           {ADMIN_SECTIONS.map((section) => (
+             <TouchableOpacity
+diff --git a/model.patch b/model.patch
+index 4cc0172..e69de29 100644
+--- a/model.patch
++++ b/model.patch
+@@ -1,111 +0,0 @@
+-diff --git a/frontend/src/store/appStore.ts b/frontend/src/store/appStore.ts
+-index bd5ce58..597d264 100644
+---- a/frontend/src/store/appStore.ts
+-+++ b/frontend/src/store/appStore.ts
+-@@ -293,22 +293,39 @@ export const useAppStore = create<AppState>()(
+-       setLastSyncTime: (time) => set({ lastSyncTime: time }),
+- 
+-       // Cart Actions
+--      addToCart: (productId, quantity = 1) => {
+-+      addToCart: (item, quantity = 1) => {
+-         const { cartItems } = get();
+--        const existingIndex = cartItems.findIndex((item) => item.productId === productId);
+--
+--        if (existingIndex >= 0) {
+--          const updated = [...cartItems];
+--          updated[existingIndex].quantity += quantity;
+--          set({ cartItems: updated });
+-+        
+-+        // Handle both string (productId) and full CartItemData object
+-+        if (typeof item === 'string') {
+-+          const productId = item;
+-+          const existingIndex = cartItems.findIndex((ci) => ci.productId === productId && !ci.bundleGroupId);
+-+          if (existingIndex >= 0) {
+-+            const updated = [...cartItems];
+-+            updated[existingIndex].quantity += quantity;
+-+            set({ cartItems: updated });
+-+          } else {
+-+            set({ cartItems: [...cartItems, { productId, quantity }] });
+-+          }
+-         } else {
+--          set({ cartItems: [...cartItems, { productId, quantity }] });
+-+          // Full CartItemData object (for bundle items)
+-+          const cartItem = item as CartItemData;
+-+          const existingIndex = cartItems.findIndex(
+-+            (ci) => ci.productId === cartItem.productId && ci.bundleGroupId === cartItem.bundleGroupId
+-+          );
+-+          if (existingIndex >= 0) {
+-+            const updated = [...cartItems];
+-+            updated[existingIndex].quantity += cartItem.quantity || 1;
+-+            set({ cartItems: updated });
+-+          } else {
+-+            set({ cartItems: [...cartItems, { ...cartItem, quantity: cartItem.quantity || 1 }] });
+-+          }
+-         }
+-       },
+- 
+-       addToLocalCart: (item) => {
+-         const { cartItems } = get();
+--        const existingIndex = cartItems.findIndex((ci) => ci.productId === item.product_id);
+-+        const existingIndex = cartItems.findIndex((ci) => ci.productId === item.product_id && !ci.bundleGroupId);
+- 
+-         if (existingIndex >= 0) {
+-           const updated = [...cartItems];
+-@@ -325,6 +342,11 @@ export const useAppStore = create<AppState>()(
+-       updateCartItem: (productId, quantity) => {
+-         const { cartItems } = get();
+-         if (quantity <= 0) {
+-+          // Check if it's a bundle item and void the bundle
+-+          const item = cartItems.find((i) => i.productId === productId);
+-+          if (item?.bundleGroupId) {
+-+            get().voidBundleDiscount(item.bundleGroupId);
+-+          }
+-           set({ cartItems: cartItems.filter((item) => item.productId !== productId) });
+-         } else {
+-           set({
+-@@ -335,14 +357,43 @@ export const useAppStore = create<AppState>()(
+-         }
+-       },
+- 
+--      removeFromCart: (productId) => {
+--        set({ cartItems: get().cartItems.filter((item) => item.productId !== productId) });
+-+      removeFromCart: (productId, voidBundle = true) => {
+-+        const { cartItems } = get();
+-+        const itemToRemove = cartItems.find((item) => item.productId === productId);
+-+        
+-+        // If item is part of a bundle and voidBundle is true, void the entire bundle discount
+-+        if (itemToRemove?.bundleGroupId && voidBundle) {
+-+          get().voidBundleDiscount(itemToRemove.bundleGroupId);
+-+        }
+-+        
+-+        set({ cartItems: cartItems.filter((item) => item.productId !== productId) });
+-       },
+- 
+-       clearCart: () => set({ cartItems: [] }),
+- 
+-       getCartTotal: () => get().cartItems.reduce((total, item) => total + item.quantity, 0),
+- 
+-+      // Void bundle discount - removes discount from all items in the bundle
+-+      voidBundleDiscount: (bundleGroupId) => {
+-+        const { cartItems } = get();
+-+        const updatedItems = cartItems.map((item) => {
+-+          if (item.bundleGroupId === bundleGroupId) {
+-+            // Remove bundle info and restore original price
+-+            return {
+-+              ...item,
+-+              bundleGroupId: undefined,
+-+              bundleOfferId: undefined,
+-+              bundleOfferName: undefined,
+-+              bundleDiscount: undefined,
+-+              discountedPrice: undefined,
+-+              // Keep originalPrice as the actual price now
+-+            };
+-+          }
+-+          return item;
+-+        });
+-+        set({ cartItems: updatedItems });
+-+      },
+-+
+-       // Notification Actions
+-       addNotification: (notification) => {
+-         const { notifications } = get();
