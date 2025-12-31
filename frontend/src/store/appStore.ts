@@ -42,7 +42,7 @@ export interface Notification {
   created_at: string;
 }
 
-// Color Moods for theming
+// Color Moods for theming - Neon Night is the default
 export interface ColorMood {
   id: string;
   name: string;
@@ -56,7 +56,22 @@ export interface ColorMood {
   gradient: string[];
 }
 
+// Neon Night theme as the primary/default theme
+export const NEON_NIGHT_THEME: ColorMood = {
+  id: 'neon_night',
+  name: 'Neon Night',
+  primary: '#8B5CF6',
+  secondary: '#A78BFA',
+  background: '#0F0F23',
+  surface: '#1A1A2E',
+  text: '#E5E5E5',
+  textSecondary: '#A0A0A0',
+  accent: '#EC4899',
+  gradient: ['#1E1E3F', '#2D2D5F', '#3D3D7F'],
+};
+
 export const COLOR_MOODS: ColorMood[] = [
+  NEON_NIGHT_THEME, // Neon Night as first/default
   {
     id: 'arctic_dawn',
     name: 'Arctic Dawn',
@@ -92,18 +107,6 @@ export const COLOR_MOODS: ColorMood[] = [
     textSecondary: '#047857',
     accent: '#059669',
     gradient: ['#D1FAE5', '#A7F3D0', '#6EE7B7'],
-  },
-  {
-    id: 'neon_night',
-    name: 'Neon Night',
-    primary: '#8B5CF6',
-    secondary: '#A78BFA',
-    background: '#0F0F23',
-    surface: '#1A1A2E',
-    text: '#E5E5E5',
-    textSecondary: '#A0A0A0',
-    accent: '#EC4899',
-    gradient: ['#1E1E3F', '#2D2D5F', '#3D3D7F'],
   },
   {
     id: 'ocean_breeze',
