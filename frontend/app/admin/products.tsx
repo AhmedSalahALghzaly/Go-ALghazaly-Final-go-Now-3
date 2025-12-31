@@ -361,6 +361,12 @@ export default function ProductsAdmin() {
               {/* Selected Brand Display */}
               {selectedBrandId && (
                 <View style={[styles.selectedDisplay, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                  {productBrands.find(b => b.id === selectedBrandId)?.logo && (
+                    <Image 
+                      source={{ uri: productBrands.find(b => b.id === selectedBrandId)?.logo }} 
+                      style={styles.selectedBrandLogo} 
+                    />
+                  )}
                   <Ionicons name="pricetag" size={16} color={colors.primary} />
                   <Text style={[styles.selectedText, { color: colors.primary }]}>
                     {getSelectedBrandName()}
@@ -376,7 +382,7 @@ export default function ProductsAdmin() {
                   <TouchableOpacity
                     key={brand.id}
                     style={[
-                      styles.chip,
+                      styles.brandChip,
                       { 
                         backgroundColor: selectedBrandId === brand.id ? colors.primary : colors.surface, 
                         borderColor: selectedBrandId === brand.id ? colors.primary : colors.border 
@@ -384,10 +390,23 @@ export default function ProductsAdmin() {
                     ]}
                     onPress={() => setSelectedBrandId(brand.id)}
                   >
-                    {selectedBrandId === brand.id && (
-                      <Ionicons name="checkmark" size={14} color="#FFF" style={{ marginRight: 4 }} />
+                    {brand.logo ? (
+                      <Image 
+                        source={{ uri: brand.logo }} 
+                        style={[
+                          styles.brandChipLogo,
+                          { borderColor: selectedBrandId === brand.id ? 'rgba(255,255,255,0.3)' : colors.border }
+                        ]} 
+                      />
+                    ) : (
+                      <View style={[styles.brandChipPlaceholder, { backgroundColor: colors.border }]}>
+                        <Ionicons name="pricetag" size={14} color={colors.textSecondary} />
+                      </View>
                     )}
-                    <Text style={{ color: selectedBrandId === brand.id ? '#FFF' : colors.text, fontSize: 13, fontWeight: '500' }}>
+                    {selectedBrandId === brand.id && (
+                      <Ionicons name="checkmark-circle" size={14} color="#FFF" style={{ marginLeft: 4 }} />
+                    )}
+                    <Text style={{ color: selectedBrandId === brand.id ? '#FFF' : colors.text, fontSize: 12, fontWeight: '500' }}>
                       {language === 'ar' ? brand.name_ar : brand.name}
                     </Text>
                   </TouchableOpacity>
