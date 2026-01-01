@@ -11,6 +11,7 @@ import {
   TextInput,
   Animated,
   Keyboard,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,9 +23,12 @@ import { InteractiveCarSelector } from '../../src/components/InteractiveCarSelec
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useAppStore } from '../../src/store/appStore';
-import { categoriesApi, carBrandsApi, carModelsApi, productBrandsApi, productsApi, cartApi, favoritesApi } from '../../src/services/api';
+import { categoriesApi, carBrandsApi, carModelsApi, productBrandsApi, productsApi, cartApi, favoritesApi, promotionApi } from '../../src/services/api';
 import { Skeleton, ProductCardSkeleton, CategoryCardSkeleton } from '../../src/components/ui/Skeleton';
 import { syncService } from '../../src/services/syncService';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const { colors } = useTheme();
