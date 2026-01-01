@@ -1040,6 +1040,13 @@ export default function MarketingSuiteScreen() {
           </View>
         </View>
       </Modal>
+      
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        onDismiss={() => setToastVisible(false)}
+      />
     </SafeAreaView>
   );
 }
