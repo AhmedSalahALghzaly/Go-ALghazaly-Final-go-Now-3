@@ -1102,4 +1102,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
   },
+  footerSavingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  footerSavingsText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
 });
