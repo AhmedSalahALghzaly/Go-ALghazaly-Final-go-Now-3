@@ -563,23 +563,36 @@ export default function CheckoutScreen() {
   const handlePlaceOrder = async () => {
     setLoading(true);
     try {
-      await ordersApi.create({
+      const response = await ordersApi.create({
         shipping_address: shippingAddress,
         phone: phone,
         notes: notes || undefined,
       });
 
-      setShowConfetti(true);
-      setOrderPlaced(true);
+      // Only clear cart and show success if we got a successful response (200 OK)
+      if (response.status === 200 || response.status === 201) {
+        setShowConfetti(true);
+        setOrderPlaced(true);
 
-      setTimeout(() => {
-        clearLocalCart();
-        clearCart();
-        router.replace('/orders');
-      }, 2500);
-    } catch (error) {
+        // Clear cart ONLY after successful order creation
+        setTimeout(() => {
+          clearLocalCart();
+          clearCart();
+          // Also clear server cart
+          cartApi.clear().catch(() => {});
+          router.replace('/orders');
+        }, 2500);
+      } else {
+        throw new Error('Order creation failed');
+      }
+    } catch (error: any) {
       console.error('Error placing order:', error);
-      Alert.alert(language === 'ar' ? 'خطأ' : 'Error', language === 'ar' ? 'فشل إرسال الطلب' : 'Failed to place order');
+      // DO NOT clear cart on failure - preserve user's items
+      const errorMessage = error?.response?.data?.detail || (language === 'ar' ? 'فشل إرسال الطلب. يرجى المحاولة مرة أخرى.' : 'Failed to place order. Please try again.');
+      Alert.alert(
+        language === 'ar' ? 'خطأ' : 'Error', 
+        errorMessage
+      );
     } finally {
       setLoading(false);
     }
