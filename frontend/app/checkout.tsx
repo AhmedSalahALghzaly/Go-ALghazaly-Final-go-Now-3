@@ -108,72 +108,119 @@ const StepIndicator = ({ currentStep, totalSteps, labels, isRTL, colors }: any) 
   );
 };
 
-// Step 1: Review Cart
-const ReviewStep = ({ cartItems, getTotal, language, isRTL, colors, onNext }: any) => (
-  <Animated.View
-    entering={SlideInRight.duration(300)}
-    exiting={SlideOutLeft.duration(300)}
-    style={styles.stepContent}
-  >
-    <Text style={[styles.stepTitle, { color: colors.text }, isRTL && styles.textRight]}>
-      {language === 'ar' ? 'مراجعة الطلب' : 'Review Your Order'}
-    </Text>
-    <Text style={[styles.stepSubtitle, { color: colors.textSecondary }, isRTL && styles.textRight]}>
-      {language === 'ar' ? 'تأكد من صحة المنتجات والكميات' : 'Confirm your items and quantities'}
-    </Text>
+// Step 1: Review Cart with Enhanced Pricing
+const ReviewStep = ({ cartItems, getTotal, getOriginalTotal, getTotalSavings, language, isRTL, colors, onNext }: any) => {
+  const totalSavings = getTotalSavings();
+  
+  return (
+    <Animated.View
+      entering={SlideInRight.duration(300)}
+      exiting={SlideOutLeft.duration(300)}
+      style={styles.stepContent}
+    >
+      <Text style={[styles.stepTitle, { color: colors.text }, isRTL && styles.textRight]}>
+        {language === 'ar' ? 'مراجعة الطلب' : 'Review Your Order'}
+      </Text>
+      <Text style={[styles.stepSubtitle, { color: colors.textSecondary }, isRTL && styles.textRight]}>
+        {language === 'ar' ? 'تأكد من صحة المنتجات والكميات' : 'Confirm your items and quantities'}
+      </Text>
 
-    <View style={[styles.cartReviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      {cartItems.map((item: any, index: number) => (
-        <Animated.View
-          key={item.product_id || item.productId || index}
-          entering={FadeInDown.delay(index * 50)}
-          style={[
-            styles.reviewItem,
-            isRTL && styles.rowReverse,
-            index < cartItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
-          ]}
-        >
-          <View style={styles.reviewItemImage}>
-            {item.product?.image ? (
-              <Image source={{ uri: item.product.image }} style={styles.reviewImg} resizeMode="cover" />
-            ) : (
-              <View style={[styles.reviewImgPlaceholder, { backgroundColor: colors.border }]}>
-                <Ionicons name="cube-outline" size={24} color={colors.textSecondary} />
+      <View style={[styles.cartReviewCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {cartItems.map((item: any, index: number) => {
+          // Use server-side cart pricing
+          const originalPrice = item.original_unit_price || item.product?.price || 0;
+          const finalPrice = item.final_unit_price || item.discountedPrice || item.product?.price || 0;
+          const hasDiscount = originalPrice > finalPrice;
+          const discountDetails = item.discount_details;
+          
+          return (
+            <Animated.View
+              key={item.product_id || item.productId || index}
+              entering={FadeInDown.delay(index * 50)}
+              style={[
+                styles.reviewItem,
+                isRTL && styles.rowReverse,
+                index < cartItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: colors.border },
+              ]}
+            >
+              <View style={styles.reviewItemImage}>
+                {item.product?.image ? (
+                  <Image source={{ uri: item.product.image }} style={styles.reviewImg} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.reviewImgPlaceholder, { backgroundColor: colors.border }]}>
+                    <Ionicons name="cube-outline" size={24} color={colors.textSecondary} />
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <View style={[styles.reviewItemInfo, isRTL && { alignItems: 'flex-end' }]}>
-            <Text style={[styles.reviewItemName, { color: colors.text }]} numberOfLines={2}>
-              {language === 'ar' ? item.product?.name_ar || item.product?.name : item.product?.name || 'Product'}
-            </Text>
-            <Text style={[styles.reviewItemQty, { color: colors.textSecondary }]}>
-              {language === 'ar' ? `الكمية: ${item.quantity}` : `Qty: ${item.quantity}`}
-            </Text>
-          </View>
-          <View style={styles.reviewItemPrice}>
-            {item.bundleDiscount && (
-              <Text style={[styles.reviewOriginalPrice, { color: colors.textSecondary }]}>
-                {(item.product?.price * item.quantity).toFixed(0)} ج.م
-              </Text>
-            )}
-            <Text style={[styles.reviewFinalPrice, { color: NEON_NIGHT_THEME.primary }]}>
-              {((item.discountedPrice || item.product?.price || 0) * item.quantity).toFixed(0)} ج.م
-            </Text>
-          </View>
-        </Animated.View>
-      ))}
+              <View style={[styles.reviewItemInfo, isRTL && { alignItems: 'flex-end' }]}>
+                <Text style={[styles.reviewItemName, { color: colors.text }]} numberOfLines={2}>
+                  {language === 'ar' ? item.product?.name_ar || item.product?.name : item.product?.name || 'Product'}
+                </Text>
+                <View style={styles.reviewItemMeta}>
+                  <Text style={[styles.reviewItemQty, { color: colors.textSecondary }]}>
+                    {language === 'ar' ? `الكمية: ${item.quantity}` : `Qty: ${item.quantity}`}
+                  </Text>
+                  {hasDiscount && discountDetails?.discount_type === 'bundle' && (
+                    <View style={[styles.reviewDiscountBadge, { backgroundColor: NEON_NIGHT_THEME.accent }]}>
+                      <Text style={styles.reviewDiscountBadgeText}>
+                        -{discountDetails.discount_value}%
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+              <View style={styles.reviewItemPrice}>
+                {hasDiscount && (
+                  <Text style={[styles.reviewOriginalPrice, { color: colors.textSecondary }]}>
+                    {(originalPrice * item.quantity).toFixed(0)} ج.م
+                  </Text>
+                )}
+                <Text style={[styles.reviewFinalPrice, { color: NEON_NIGHT_THEME.primary }]}>
+                  {(finalPrice * item.quantity).toFixed(0)} ج.م
+                </Text>
+              </View>
+            </Animated.View>
+          );
+        })}
 
-      <View style={[styles.reviewTotal, { borderTopColor: colors.border }, isRTL && styles.rowReverse]}>
-        <Text style={[styles.reviewTotalLabel, { color: colors.textSecondary }]}>
-          {language === 'ar' ? 'الإجمالي:' : 'Total:'}
-        </Text>
-        <Text style={[styles.reviewTotalValue, { color: NEON_NIGHT_THEME.primary }]}>
-          {getTotal().toFixed(0)} ج.م
-        </Text>
+        {/* Order Summary with Savings */}
+        <View style={[styles.reviewSummary, { borderTopColor: colors.border }]}>
+          {totalSavings > 0 && (
+            <View style={[styles.reviewSummaryRow, isRTL && styles.rowReverse]}>
+              <Text style={[styles.reviewSummaryLabel, { color: colors.textSecondary }]}>
+                {language === 'ar' ? 'المجموع الأصلي:' : 'Original:'}
+              </Text>
+              <Text style={[styles.reviewOriginalTotal, { color: colors.textSecondary }]}>
+                {getOriginalTotal().toFixed(0)} ج.م
+              </Text>
+            </View>
+          )}
+          {totalSavings > 0 && (
+            <View style={[styles.reviewSummaryRow, isRTL && styles.rowReverse]}>
+              <View style={styles.savingsIconRow}>
+                <Ionicons name="sparkles" size={14} color={NEON_NIGHT_THEME.accent} />
+                <Text style={[styles.reviewSavingsLabel, { color: NEON_NIGHT_THEME.accent }]}>
+                  {language === 'ar' ? 'التوفير:' : 'Savings:'}
+                </Text>
+              </View>
+              <Text style={[styles.reviewSavingsValue, { color: NEON_NIGHT_THEME.accent }]}>
+                -{totalSavings.toFixed(0)} ج.م
+              </Text>
+            </View>
+          )}
+          <View style={[styles.reviewTotal, isRTL && styles.rowReverse]}>
+            <Text style={[styles.reviewTotalLabel, { color: colors.text }]}>
+              {language === 'ar' ? 'الإجمالي:' : 'Total:'}
+            </Text>
+            <Text style={[styles.reviewTotalValue, { color: NEON_NIGHT_THEME.primary }]}>
+              {getTotal().toFixed(0)} ج.م
+            </Text>
+          </View>
+        </View>
       </View>
-    </View>
-  </Animated.View>
-);
+    </Animated.View>
+  );
+};
 
 // Step 2: Shipping Details
 const ShippingStep = ({
