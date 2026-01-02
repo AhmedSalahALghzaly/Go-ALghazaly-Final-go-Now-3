@@ -72,9 +72,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated, hasHydrated, segments, user, isNavigationReady]);
 
   // Show loading screen while hydrating (with force-show fallback)
-  if (!hasHydrated && !forceShow) {
+  if (!showContent) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: currentMood?.background || '#F0F9FF' }]}>
+      <View style={[styles.loadingContainer, { backgroundColor: currentMood?.background || '#0F172A' }]}>
         <ActivityIndicator size="large" color={currentMood?.primary || '#3B82F6'} />
       </View>
     );
