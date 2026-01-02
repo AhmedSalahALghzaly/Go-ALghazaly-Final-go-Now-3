@@ -853,6 +853,34 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 8,
   },
+  priceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  originalUnitPrice: {
+    fontSize: 13,
+    textDecorationLine: 'line-through',
+  },
+  discountTag: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  discountTagText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  savingsLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  originalSubtotal: {
+    fontSize: 11,
+    textDecorationLine: 'line-through',
+  },
   quantityRow: {
     flexDirection: 'row',
     alignItems: 'center',
