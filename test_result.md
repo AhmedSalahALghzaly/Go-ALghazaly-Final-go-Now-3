@@ -381,8 +381,10 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Phase 2 Complete: Implemented full CRUD for Admins (with revenue settlement, long-press reset), Customers (with sort toggle), Subscriptions (with confetti, void delete). Added Global Search, Notification Center, Error Capsule, WebSocket service. All metrics in Owner Dashboard are now clickable for deep-linking."
-        agent: "main"
-        comment: "Created 8 sub-screens: customers, admins, collection, subscriptions, analytics, suppliers, distributors, settings"
+  - agent: "testing"
+    message: "✅ UNIFIED CART SYSTEM v4.0 TESTING COMPLETE: All 12 backend API tests passed (100% success rate). Health check confirms v4.0.0. Enhanced cart APIs verified: GET /cart, POST /cart/add, PUT /cart/update, DELETE /cart/void-bundle/{bundle_group_id}, DELETE /cart/clear. Order APIs support order_source field (customer_app/admin_assisted). Analytics includes order_source_breakdown and discount_performance metrics. All endpoints properly secured with authentication/authorization. Cart system ready for production use."
+  - agent: "main"
+    message: "Updated checkout.tsx to use server-side cart pricing. Changes: 1) getTotal() now uses final_unit_price, 2) Added getOriginalTotal() and getTotalSavings() functions, 3) Updated ReviewStep to show original price (strikethrough), final price, and savings, 4) Updated ConfirmStep to show price breakdown with savings, 5) Footer now shows savings indicator on Place Order button. The cart and checkout flow now properly use server-side pricing data (final_unit_price, original_unit_price, discount_details)."
 
   - task: "Tab Layout with Owner Access"
     implemented: true
