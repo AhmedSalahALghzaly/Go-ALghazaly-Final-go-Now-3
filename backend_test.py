@@ -262,16 +262,21 @@ class APITester:
         # Test POST /api/admin/orders/create
         try:
             order_data = {
-                "customer_id": "test-customer-123",
+                "user_id": "test-customer-123",
+                "first_name": "Ahmed",
+                "last_name": "Hassan",
+                "email": "ahmed.hassan@example.com",
+                "phone": "+201234567890",
+                "street_address": "123 Test Street",
+                "city": "Cairo",
+                "state": "Cairo",
+                "country": "Egypt",
                 "items": [
                     {
                         "product_id": self.test_product_id or "test-product-123",
-                        "quantity": 2,
-                        "price": 150.0
+                        "quantity": 2
                     }
                 ],
-                "shipping_address": "123 Test Street, Cairo, Egypt",
-                "phone": "+201234567890",
                 "notes": "Test order created by admin"
             }
             
