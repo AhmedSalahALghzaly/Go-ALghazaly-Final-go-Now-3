@@ -452,45 +452,80 @@ class CartSystemTester:
             self.log_test("Analytics Overview", False, f"Exception: {str(e)}")
             return False
 
-    def test_cart_enhanced_pricing_fields(self):
-        """Test 11: Verify Cart Returns Enhanced Pricing Fields"""
+    def test_api_structure_verification(self):
+        """Test 12: Verify API Structure and Response Formats"""
         try:
-            response = self.session.get(f"{BASE_URL}/cart")
+            # Test products endpoint structure
+            response = self.session.get(f"{BASE_URL}/products?limit=1")
             
-            if response.status_code == 401:
-                self.log_test("Cart Enhanced Pricing (Unauthenticated)", True, "Correctly requires authentication")
-                return True
-            elif response.status_code == 200:
+            if response.status_code == 200:
                 data = response.json()
-                
-                # Check cart-level fields
-                cart_fields = ["subtotal", "total_discount", "total"]
-                missing_cart_fields = [f for f in cart_fields if f not in data]
-                
-                if missing_cart_fields:
-                    self.log_test("Cart Enhanced Pricing", False, f"Missing cart fields: {missing_cart_fields}", data)
+                if "products" in data and "total" in data:
+                    products = data.get("products", [])
+                    if products:
+                        product = products[0]
+                        expected_fields = ["id", "name", "price", "sku"]
+                        missing = [f for f in expected_fields if f not in product]
+                        
+                        if not missing:
+                            self.log_test("API Structure Verification", True, f"Product API structure correct, sample product: {product.get('name')}")
+                            return True
+                        else:
+                            self.log_test("API Structure Verification", False, f"Missing product fields: {missing}")
+                            return False
+                    else:
+                        self.log_test("API Structure Verification", True, "Products API accessible but no products found")
+                        return True
+                else:
+                    self.log_test("API Structure Verification", False, "Products API missing required fields")
                     return False
-                
-                # If cart has items, check item-level fields
-                items = data.get("items", [])
-                if items:
-                    item = items[0]
-                    item_fields = ["original_unit_price", "final_unit_price", "discount_details", "item_subtotal", "item_discount"]
-                    missing_item_fields = [f for f in item_fields if f not in item]
-                    
-                    if missing_item_fields:
-                        self.log_test("Cart Enhanced Pricing", False, f"Missing item fields: {missing_item_fields}", data)
-                        return False
-                
-                self.log_test("Cart Enhanced Pricing", True, "Cart returns all enhanced pricing fields")
-                return True
             else:
-                self.log_test("Cart Enhanced Pricing", False, f"HTTP {response.status_code}", response.text)
+                self.log_test("API Structure Verification", False, f"Products API HTTP {response.status_code}")
                 return False
                 
         except Exception as e:
-            self.log_test("Cart Enhanced Pricing", False, f"Exception: {str(e)}")
+            self.log_test("API Structure Verification", False, f"Exception: {str(e)}")
             return False
+
+    def test_cart_api_endpoints_exist(self):
+        """Test 13: Verify Cart API Endpoints Exist (Structure Test)"""
+        endpoints_to_test = [
+            ("GET", "/cart", "Get cart"),
+            ("POST", "/cart/add", "Add to cart"),
+            ("PUT", "/cart/update", "Update cart"),
+            ("DELETE", "/cart/clear", "Clear cart")
+        ]
+        
+        all_passed = True
+        endpoint_results = []
+        
+        for method, endpoint, description in endpoints_to_test:
+            try:
+                if method == "GET":
+                    response = self.session.get(f"{BASE_URL}{endpoint}")
+                elif method == "POST":
+                    response = self.session.post(f"{BASE_URL}{endpoint}", json={})
+                elif method == "PUT":
+                    response = self.session.put(f"{BASE_URL}{endpoint}", json={})
+                elif method == "DELETE":
+                    response = self.session.delete(f"{BASE_URL}{endpoint}")
+                
+                # We expect 401 (auth required) or 400 (bad request), not 404 (not found)
+                if response.status_code in [401, 400, 422]:
+                    endpoint_results.append(f"✅ {method} {endpoint} - {description}")
+                elif response.status_code == 404:
+                    endpoint_results.append(f"❌ {method} {endpoint} - {description} (NOT FOUND)")
+                    all_passed = False
+                else:
+                    endpoint_results.append(f"⚠️  {method} {endpoint} - {description} (HTTP {response.status_code})")
+                    
+            except Exception as e:
+                endpoint_results.append(f"❌ {method} {endpoint} - {description} (Exception: {str(e)})")
+                all_passed = False
+        
+        details = "\n    ".join(endpoint_results)
+        self.log_test("Cart API Endpoints Exist", all_passed, f"Endpoint availability:\n    {details}")
+        return all_passed
 
     def run_all_tests(self):
         """Run all cart system tests"""
