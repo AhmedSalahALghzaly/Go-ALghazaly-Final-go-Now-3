@@ -25,14 +25,19 @@ export default function ProfileScreen() {
   const { colors, isDark } = useTheme();
   const { t, isRTL, language } = useTranslation();
   const router = useRouter();
-  const { user, theme, toggleTheme, setLanguage, logout } = useAppStore();
+  const { user, theme, toggleTheme, setLanguage, logout, userRole } = useAppStore();
   const partners = useAppStore((state) => state.partners);
+  const admins = useAppStore((state) => state.admins);
+  const canAccessAdminPanel = useCanAccessAdminPanel();
 
   // Check if user can access owner interface
   const isOwner = user?.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
   const isPartner = partners.some(
     (p: any) => p.email?.toLowerCase() === user?.email?.toLowerCase()
   );
+  const isAdmin = admins.some(
+    (a: any) => a.email?.toLowerCase() === user?.email?.toLowerCase()
+  ) || userRole === 'admin';
   const canAccessOwner = isOwner || isPartner;
 
   const handleLogout = async () => {
