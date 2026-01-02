@@ -1,6 +1,7 @@
 """
 Al-Ghazaly Auto Parts API - Advanced Owner Interface Backend
 FastAPI + MongoDB + WebSockets
+Unified Server-Side Cart System v4.0
 """
 from fastapi import FastAPI, APIRouter, HTTPException, Response, Request, Query, WebSocket, WebSocketDisconnect
 from dotenv import load_dotenv
@@ -20,7 +21,7 @@ import time
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-app = FastAPI(title="Al-Ghazaly Auto Parts API", version="3.0.0")
+app = FastAPI(title="Al-Ghazaly Auto Parts API", version="4.0.0")
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -131,9 +132,30 @@ class ProductCreate(BaseModel):
     hidden_status: bool = False
     added_by_admin_id: Optional[str] = None
 
+# ==================== Enhanced Cart Schema ====================
+
+class DiscountDetails(BaseModel):
+    discount_type: str = "none"  # none, bundle, promotion, admin_discount
+    discount_value: float = 0  # Percentage or fixed amount
+    discount_source_id: Optional[str] = None  # Bundle offer ID, Promotion ID, etc.
+    discount_source_name: Optional[str] = None
+
 class CartItemAdd(BaseModel):
     product_id: str
     quantity: int = 1
+    # Enhanced fields for unified cart
+    bundle_group_id: Optional[str] = None
+    bundle_offer_id: Optional[str] = None
+    bundle_discount_percentage: Optional[float] = None
+
+class CartItemAddEnhanced(BaseModel):
+    product_id: str
+    quantity: int = 1
+    original_unit_price: Optional[float] = None
+    final_unit_price: Optional[float] = None
+    discount_details: Optional[Dict[str, Any]] = None
+    bundle_group_id: Optional[str] = None
+    added_by_admin_id: Optional[str] = None
 
 class OrderCreate(BaseModel):
     first_name: str
@@ -146,6 +168,13 @@ class OrderCreate(BaseModel):
     country: str = "Egypt"
     delivery_instructions: Optional[str] = None
     payment_method: str = "cash_on_delivery"
+    notes: Optional[str] = None
+
+class AdminAssistedOrderCreate(BaseModel):
+    customer_id: str
+    items: List[Dict[str, Any]]
+    shipping_address: str
+    phone: str
     notes: Optional[str] = None
 
 class CommentCreate(BaseModel):
@@ -464,6 +493,11 @@ async def get_admins(request: Request):
         admin_data["products_delivered"] = delivered
         admin_data["products_processing"] = processing
         admin_data["revenue"] = admin.get("revenue", 0)
+        
+        # Count admin-assisted orders
+        assisted_orders = await db.orders.count_documents({"order_source": "admin_assisted", "created_by_admin_id": admin["_id"]})
+        admin_data["assisted_orders"] = assisted_orders
+        
         result.append(admin_data)
     return result
 
@@ -871,7 +905,7 @@ async def mark_all_read(request: Request):
     )
     return {"message": "All marked as read"}
 
-# ==================== Analytics Routes ====================
+# ==================== Enhanced Analytics Routes ====================
 
 @api_router.get("/analytics/overview")
 async def get_analytics_overview(request: Request, start_date: Optional[str] = None, end_date: Optional[str] = None):
@@ -906,6 +940,53 @@ async def get_analytics_overview(request: Request, start_date: Optional[str] = N
     for status in ["pending", "preparing", "shipped", "out_for_delivery", "delivered", "cancelled"]:
         status_counts[status] = sum(1 for o in orders if o.get("status") == status)
     
+    # ==================== NEW: Order Source Analytics ====================
+    customer_app_orders = sum(1 for o in orders if o.get("order_source", "customer_app") == "customer_app")
+    admin_assisted_orders = sum(1 for o in orders if o.get("order_source") == "admin_assisted")
+    
+    order_source_breakdown = {
+        "customer_app": customer_app_orders,
+        "admin_assisted": admin_assisted_orders,
+        "customer_app_percentage": round((customer_app_orders / total_orders * 100) if total_orders > 0 else 0, 1),
+        "admin_assisted_percentage": round((admin_assisted_orders / total_orders * 100) if total_orders > 0 else 0, 1),
+    }
+    
+    # ==================== NEW: Discount & Bundle Performance ====================
+    total_discount_value = 0
+    bundle_revenue = 0
+    regular_revenue = 0
+    bundle_orders = 0
+    
+    for order in orders:
+        order_has_bundle = False
+        for item in order.get("items", []):
+            original_price = item.get("original_unit_price", item.get("price", 0))
+            final_price = item.get("final_unit_price", item.get("price", 0))
+            quantity = item.get("quantity", 1)
+            
+            # Calculate discount
+            discount = (original_price - final_price) * quantity
+            total_discount_value += max(0, discount)
+            
+            # Check if bundle item
+            if item.get("bundle_group_id") or item.get("discount_details", {}).get("discount_type") == "bundle":
+                bundle_revenue += final_price * quantity
+                order_has_bundle = True
+            else:
+                regular_revenue += final_price * quantity
+        
+        if order_has_bundle:
+            bundle_orders += 1
+    
+    discount_performance = {
+        "total_discount_value": round(total_discount_value, 2),
+        "bundle_revenue": round(bundle_revenue, 2),
+        "regular_revenue": round(regular_revenue, 2),
+        "bundle_orders_count": bundle_orders,
+        "bundle_revenue_percentage": round((bundle_revenue / total_revenue * 100) if total_revenue > 0 else 0, 1),
+        "average_discount_per_order": round(total_discount_value / total_orders if total_orders > 0 else 0, 2),
+    }
+    
     # Top products
     product_sales = {}
     for order in orders:
@@ -915,7 +996,7 @@ async def get_analytics_overview(request: Request, start_date: Optional[str] = N
                 if pid not in product_sales:
                     product_sales[pid] = {"count": 0, "revenue": 0, "name": item.get("product_name", "Unknown")}
                 product_sales[pid]["count"] += item.get("quantity", 1)
-                product_sales[pid]["revenue"] += item.get("price", 0) * item.get("quantity", 1)
+                product_sales[pid]["revenue"] += item.get("final_unit_price", item.get("price", 0)) * item.get("quantity", 1)
     
     top_products = sorted(product_sales.values(), key=lambda x: x["revenue"], reverse=True)[:10]
     
@@ -937,7 +1018,7 @@ async def get_analytics_overview(request: Request, start_date: Optional[str] = N
                 if admin_id not in admin_sales:
                     admin_sales[admin_id] = {"count": 0, "revenue": 0}
                 admin_sales[admin_id]["count"] += item.get("quantity", 1)
-                admin_sales[admin_id]["revenue"] += item.get("price", 0) * item.get("quantity", 1)
+                admin_sales[admin_id]["revenue"] += item.get("final_unit_price", item.get("price", 0)) * item.get("quantity", 1)
     
     # Get admin names
     admins = await db.admins.find({}).to_list(1000)
@@ -960,6 +1041,8 @@ async def get_analytics_overview(request: Request, start_date: Optional[str] = N
         "delivered_revenue": delivered_revenue,
         "average_order_value": round(aov, 2),
         "orders_by_status": status_counts,
+        "order_source_breakdown": order_source_breakdown,
+        "discount_performance": discount_performance,
         "top_products": top_products,
         "revenue_by_day": [{"date": k, "revenue": v} for k, v in sorted(revenue_by_day.items())],
         "sales_by_admin": sales_by_admin,
@@ -1251,59 +1334,253 @@ async def delete_product(product_id: str):
     await manager.broadcast({"type": "sync", "tables": ["products"]})
     return {"message": "Deleted"}
 
-# ==================== Cart Routes ====================
+# ==================== Enhanced Cart Routes (Server-Side Cart) ====================
 
 @api_router.get("/cart")
 async def get_cart(request: Request):
+    """Get cart with full pricing details from server-side storage"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
     cart = await db.carts.find_one({"user_id": user["id"]})
     if not cart:
-        return {"user_id": user["id"], "items": []}
+        return {
+            "user_id": user["id"],
+            "items": [],
+            "subtotal": 0,
+            "total_discount": 0,
+            "total": 0
+        }
+    
     items = []
+    subtotal = 0
+    total_discount = 0
+    
     for item in cart.get("items", []):
         product = await db.products.find_one({"_id": item["product_id"]})
         if product:
-            items.append({"product_id": item["product_id"], "quantity": item["quantity"], "product": serialize_doc(product)})
-    return {"user_id": user["id"], "items": items}
+            product_data = serialize_doc(product)
+            
+            # Get pricing from cart item (server-side source of truth)
+            original_price = item.get("original_unit_price", product["price"])
+            final_price = item.get("final_unit_price", product["price"])
+            quantity = item["quantity"]
+            
+            item_discount = (original_price - final_price) * quantity
+            item_subtotal = final_price * quantity
+            
+            subtotal += original_price * quantity
+            total_discount += item_discount
+            
+            items.append({
+                "product_id": item["product_id"],
+                "quantity": quantity,
+                "original_unit_price": original_price,
+                "final_unit_price": final_price,
+                "discount_details": item.get("discount_details", {}),
+                "bundle_group_id": item.get("bundle_group_id"),
+                "added_by_admin_id": item.get("added_by_admin_id"),
+                "item_subtotal": item_subtotal,
+                "item_discount": item_discount,
+                "product": product_data
+            })
+    
+    return {
+        "user_id": user["id"],
+        "items": items,
+        "subtotal": round(subtotal, 2),
+        "total_discount": round(total_discount, 2),
+        "total": round(subtotal - total_discount, 2)
+    }
 
 @api_router.post("/cart/add")
 async def add_to_cart(item: CartItemAdd, request: Request):
+    """Add item to cart with full pricing stored server-side"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get product details for pricing
+    product = await db.products.find_one({"_id": item.product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Calculate pricing
+    original_price = product["price"]
+    final_price = original_price
+    discount_details = {"discount_type": "none", "discount_value": 0}
+    
+    # Apply bundle discount if provided
+    if item.bundle_discount_percentage and item.bundle_discount_percentage > 0:
+        final_price = original_price * (1 - item.bundle_discount_percentage / 100)
+        discount_details = {
+            "discount_type": "bundle",
+            "discount_value": item.bundle_discount_percentage,
+            "discount_source_id": item.bundle_offer_id,
+        }
+    
+    cart_item = {
+        "product_id": item.product_id,
+        "quantity": item.quantity,
+        "original_unit_price": original_price,
+        "final_unit_price": round(final_price, 2),
+        "discount_details": discount_details,
+        "bundle_group_id": item.bundle_group_id,
+        "added_at": datetime.now(timezone.utc)
+    }
+    
     cart = await db.carts.find_one({"user_id": user["id"]})
     if not cart:
-        await db.carts.insert_one({"_id": str(uuid.uuid4()), "user_id": user["id"], "items": [{"product_id": item.product_id, "quantity": item.quantity}]})
+        await db.carts.insert_one({
+            "_id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "items": [cart_item],
+            "updated_at": datetime.now(timezone.utc)
+        })
     else:
-        existing = next((i for i in cart.get("items", []) if i["product_id"] == item.product_id), None)
-        if existing:
-            await db.carts.update_one({"user_id": user["id"], "items.product_id": item.product_id}, {"$inc": {"items.$.quantity": item.quantity}})
+        # Check if item exists (same product and bundle group)
+        existing_idx = None
+        for idx, existing_item in enumerate(cart.get("items", [])):
+            if existing_item["product_id"] == item.product_id:
+                if item.bundle_group_id:
+                    if existing_item.get("bundle_group_id") == item.bundle_group_id:
+                        existing_idx = idx
+                        break
+                elif not existing_item.get("bundle_group_id"):
+                    existing_idx = idx
+                    break
+        
+        if existing_idx is not None:
+            # Update quantity
+            await db.carts.update_one(
+                {"user_id": user["id"]},
+                {
+                    "$inc": {f"items.{existing_idx}.quantity": item.quantity},
+                    "$set": {"updated_at": datetime.now(timezone.utc)}
+                }
+            )
         else:
-            await db.carts.update_one({"user_id": user["id"]}, {"$push": {"items": {"product_id": item.product_id, "quantity": item.quantity}}})
-    return {"message": "Added"}
+            # Add new item
+            await db.carts.update_one(
+                {"user_id": user["id"]},
+                {
+                    "$push": {"items": cart_item},
+                    "$set": {"updated_at": datetime.now(timezone.utc)}
+                }
+            )
+    
+    return {"message": "Added", "item": cart_item}
 
 @api_router.put("/cart/update")
 async def update_cart(item: CartItemAdd, request: Request):
+    """Update cart item quantity"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
     if item.quantity <= 0:
-        await db.carts.update_one({"user_id": user["id"]}, {"$pull": {"items": {"product_id": item.product_id}}})
+        # Remove item
+        await db.carts.update_one(
+            {"user_id": user["id"]},
+            {
+                "$pull": {"items": {"product_id": item.product_id}},
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+        )
     else:
-        await db.carts.update_one({"user_id": user["id"], "items.product_id": item.product_id}, {"$set": {"items.$.quantity": item.quantity}})
+        # Update quantity
+        await db.carts.update_one(
+            {"user_id": user["id"], "items.product_id": item.product_id},
+            {
+                "$set": {
+                    "items.$.quantity": item.quantity,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
     return {"message": "Updated"}
+
+@api_router.post("/cart/add-enhanced")
+async def add_to_cart_enhanced(item: CartItemAddEnhanced, request: Request):
+    """Add item to cart with all pricing pre-calculated (for admin-assisted orders)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get product to validate
+    product = await db.products.find_one({"_id": item.product_id})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    cart_item = {
+        "product_id": item.product_id,
+        "quantity": item.quantity,
+        "original_unit_price": item.original_unit_price or product["price"],
+        "final_unit_price": item.final_unit_price or product["price"],
+        "discount_details": item.discount_details or {},
+        "bundle_group_id": item.bundle_group_id,
+        "added_by_admin_id": item.added_by_admin_id,
+        "added_at": datetime.now(timezone.utc)
+    }
+    
+    cart = await db.carts.find_one({"user_id": user["id"]})
+    if not cart:
+        await db.carts.insert_one({
+            "_id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "items": [cart_item],
+            "updated_at": datetime.now(timezone.utc)
+        })
+    else:
+        await db.carts.update_one(
+            {"user_id": user["id"]},
+            {
+                "$push": {"items": cart_item},
+                "$set": {"updated_at": datetime.now(timezone.utc)}
+            }
+        )
+    
+    return {"message": "Added", "item": cart_item}
 
 @api_router.delete("/cart/clear")
 async def clear_cart(request: Request):
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    await db.carts.update_one({"user_id": user["id"]}, {"$set": {"items": []}})
+    await db.carts.update_one(
+        {"user_id": user["id"]},
+        {"$set": {"items": [], "updated_at": datetime.now(timezone.utc)}}
+    )
     return {"message": "Cleared"}
 
-# ==================== Order Routes ====================
+@api_router.delete("/cart/void-bundle/{bundle_group_id}")
+async def void_bundle_discount(bundle_group_id: str, request: Request):
+    """Remove bundle discount from all items in a bundle group"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    cart = await db.carts.find_one({"user_id": user["id"]})
+    if not cart:
+        return {"message": "Cart not found"}
+    
+    updated_items = []
+    for item in cart.get("items", []):
+        if item.get("bundle_group_id") == bundle_group_id:
+            # Remove bundle info, restore original price
+            item["final_unit_price"] = item.get("original_unit_price", item["final_unit_price"])
+            item["discount_details"] = {"discount_type": "none", "discount_value": 0}
+            item["bundle_group_id"] = None
+        updated_items.append(item)
+    
+    await db.carts.update_one(
+        {"user_id": user["id"]},
+        {"$set": {"items": updated_items, "updated_at": datetime.now(timezone.utc)}}
+    )
+    return {"message": "Bundle voided"}
+
+# ==================== Enhanced Order Routes ====================
 
 @api_router.get("/orders")
 async def get_orders(request: Request):
@@ -1325,29 +1602,53 @@ async def get_all_orders(request: Request):
 
 @api_router.post("/orders")
 async def create_order(order_data: OrderCreate, request: Request):
+    """Create order using server-side cart prices (Unified Cart System)"""
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
     cart = await db.carts.find_one({"user_id": user["id"]})
     if not cart or not cart.get("items"):
         raise HTTPException(status_code=400, detail="Cart empty")
     
+    # IMPORTANT: Use prices from cart, not from products collection
     subtotal = 0
+    total_discount = 0
     order_items = []
+    
     for item in cart["items"]:
         product = await db.products.find_one({"_id": item["product_id"]})
         if product:
-            subtotal += product["price"] * item["quantity"]
+            # Use cart prices (server-side source of truth)
+            original_price = item.get("original_unit_price", product["price"])
+            final_price = item.get("final_unit_price", product["price"])
+            quantity = item["quantity"]
+            
+            item_original_total = original_price * quantity
+            item_final_total = final_price * quantity
+            item_discount = item_original_total - item_final_total
+            
+            subtotal += item_original_total
+            total_discount += item_discount
+            
             order_items.append({
                 "product_id": item["product_id"],
                 "product_name": product["name"],
                 "product_name_ar": product.get("name_ar"),
-                "quantity": item["quantity"],
-                "price": product["price"],
+                "quantity": quantity,
+                # Enhanced pricing fields
+                "original_unit_price": original_price,
+                "final_unit_price": final_price,
+                "price": final_price,  # Legacy field for compatibility
+                "discount_details": item.get("discount_details", {}),
+                "bundle_group_id": item.get("bundle_group_id"),
+                "added_by_admin_id": item.get("added_by_admin_id"),
                 "image_url": product.get("image_url")
             })
     
     shipping = 150.0
+    final_total = (subtotal - total_discount) + shipping
+    
     order = {
         "_id": str(uuid.uuid4()),
         "order_number": f"ORD-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}",
@@ -1355,12 +1656,17 @@ async def create_order(order_data: OrderCreate, request: Request):
         "customer_name": f"{order_data.first_name} {order_data.last_name}",
         "customer_email": order_data.email,
         "phone": order_data.phone,
-        "subtotal": subtotal,
+        # Enhanced financial fields
+        "subtotal": round(subtotal, 2),
+        "total_discount": round(total_discount, 2),
         "shipping_cost": shipping,
-        "total": subtotal + shipping,
+        "total": round(final_total, 2),
         "status": "pending",
         "payment_method": order_data.payment_method,
         "notes": order_data.notes,
+        # Order source tracking
+        "order_source": "customer_app",
+        "created_by_admin_id": None,
         "delivery_address": {
             "street_address": order_data.street_address,
             "city": order_data.city,
@@ -1372,6 +1678,7 @@ async def create_order(order_data: OrderCreate, request: Request):
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
     }
+    
     await db.orders.insert_one(order)
     await db.carts.update_one({"user_id": user["id"]}, {"$set": {"items": []}})
     
@@ -1382,6 +1689,102 @@ async def create_order(order_data: OrderCreate, request: Request):
             str(owner["_id"]),
             "New Order",
             f"New order #{order['order_number'][:20]} from {order['customer_name']}",
+            "info"
+        )
+    
+    await manager.broadcast({"type": "sync", "tables": ["orders"]})
+    return serialize_doc(order)
+
+@api_router.post("/orders/admin-assisted")
+async def create_admin_assisted_order(data: AdminAssistedOrderCreate, request: Request):
+    """Create order on behalf of a customer (Admin-Assisted Order)"""
+    user = await get_current_user(request)
+    role = await get_user_role(user) if user else "guest"
+    if role not in ["owner", "partner", "admin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get customer
+    customer = await db.users.find_one({"_id": data.customer_id})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Get admin info
+    admin = await db.admins.find_one({"email": user.get("email")})
+    admin_id = admin["_id"] if admin else user["id"]
+    
+    # Build order items
+    subtotal = 0
+    total_discount = 0
+    order_items = []
+    
+    for item_data in data.items:
+        product = await db.products.find_one({"_id": item_data["product_id"]})
+        if product:
+            original_price = item_data.get("original_unit_price", product["price"])
+            final_price = item_data.get("final_unit_price", product["price"])
+            quantity = item_data.get("quantity", 1)
+            
+            item_original_total = original_price * quantity
+            item_final_total = final_price * quantity
+            item_discount = item_original_total - item_final_total
+            
+            subtotal += item_original_total
+            total_discount += item_discount
+            
+            order_items.append({
+                "product_id": item_data["product_id"],
+                "product_name": product["name"],
+                "product_name_ar": product.get("name_ar"),
+                "quantity": quantity,
+                "original_unit_price": original_price,
+                "final_unit_price": final_price,
+                "price": final_price,
+                "discount_details": item_data.get("discount_details", {}),
+                "bundle_group_id": item_data.get("bundle_group_id"),
+                "added_by_admin_id": admin_id,
+                "image_url": product.get("image_url")
+            })
+    
+    shipping = 150.0
+    final_total = (subtotal - total_discount) + shipping
+    
+    order = {
+        "_id": str(uuid.uuid4()),
+        "order_number": f"ADM-{datetime.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:4].upper()}",
+        "user_id": data.customer_id,
+        "customer_name": customer.get("name", customer.get("email")),
+        "customer_email": customer.get("email"),
+        "phone": data.phone,
+        "subtotal": round(subtotal, 2),
+        "total_discount": round(total_discount, 2),
+        "shipping_cost": shipping,
+        "total": round(final_total, 2),
+        "status": "pending",
+        "payment_method": "cash_on_delivery",
+        "notes": data.notes,
+        # Admin-assisted order tracking
+        "order_source": "admin_assisted",
+        "created_by_admin_id": admin_id,
+        "delivery_address": {
+            "street_address": data.shipping_address,
+            "city": "",
+            "state": "",
+            "country": "Egypt",
+        },
+        "items": order_items,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    
+    await db.orders.insert_one(order)
+    
+    # Notify owner
+    owner = await db.users.find_one({"email": PRIMARY_OWNER_EMAIL})
+    if owner:
+        await create_notification(
+            str(owner["_id"]),
+            "Admin-Assisted Order",
+            f"New admin-assisted order #{order['order_number'][:20]} created by {user.get('name', user.get('email'))}",
             "info"
         )
     
@@ -1537,41 +1940,21 @@ async def add_comment(product_id: str, data: CommentCreate, request: Request):
 # ==================== Promotion Routes (Marketing System) ====================
 
 @api_router.get("/promotions")
-async def get_promotions(promotion_type: Optional[str] = None, active_only: bool = False):
-    """Get all promotions - public endpoint for displaying on home screen"""
+async def get_promotions(promotion_type: Optional[str] = None, active_only: bool = True):
     query = {"deleted_at": None}
     if promotion_type:
         query["promotion_type"] = promotion_type
     if active_only:
         query["is_active"] = True
-    
-    promotions = await db.promotions.find(query).sort("sort_order", 1).to_list(1000)
-    result = []
-    for promo in promotions:
-        p_data = serialize_doc(promo)
-        # Include target info
-        if promo.get("target_product_id"):
-            product = await db.products.find_one({"_id": promo["target_product_id"]})
-            p_data["target_product"] = serialize_doc(product) if product else None
-        if promo.get("target_car_model_id"):
-            model = await db.car_models.find_one({"_id": promo["target_car_model_id"]})
-            p_data["target_car_model"] = serialize_doc(model) if model else None
-        result.append(p_data)
-    return result
+    promotions = await db.promotions.find(query).sort("sort_order", 1).to_list(100)
+    return [serialize_doc(p) for p in promotions]
 
 @api_router.get("/promotions/{promotion_id}")
 async def get_promotion(promotion_id: str):
-    promo = await db.promotions.find_one({"_id": promotion_id})
-    if not promo:
+    promotion = await db.promotions.find_one({"_id": promotion_id})
+    if not promotion:
         raise HTTPException(status_code=404, detail="Promotion not found")
-    p_data = serialize_doc(promo)
-    if promo.get("target_product_id"):
-        product = await db.products.find_one({"_id": promo["target_product_id"]})
-        p_data["target_product"] = serialize_doc(product) if product else None
-    if promo.get("target_car_model_id"):
-        model = await db.car_models.find_one({"_id": promo["target_car_model_id"]})
-        p_data["target_car_model"] = serialize_doc(model) if model else None
-    return p_data
+    return serialize_doc(promotion)
 
 @api_router.post("/promotions")
 async def create_promotion(data: PromotionCreate, request: Request):
@@ -1580,21 +1963,16 @@ async def create_promotion(data: PromotionCreate, request: Request):
     if role not in ["owner", "partner", "admin"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    # Validate targeting - must have one target
-    if not data.target_product_id and not data.target_car_model_id:
-        raise HTTPException(status_code=400, detail="Must select either a product or car model target")
-    
-    promotion = {
+    doc = {
         "_id": f"promo_{uuid.uuid4().hex[:8]}",
         **data.dict(),
-        "created_by": user["id"] if user else None,
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
         "deleted_at": None,
     }
-    await db.promotions.insert_one(promotion)
+    await db.promotions.insert_one(doc)
     await manager.broadcast({"type": "sync", "tables": ["promotions"]})
-    return serialize_doc(promotion)
+    return serialize_doc(doc)
 
 @api_router.put("/promotions/{promotion_id}")
 async def update_promotion(promotion_id: str, data: PromotionCreate, request: Request):
@@ -1611,61 +1989,37 @@ async def update_promotion(promotion_id: str, data: PromotionCreate, request: Re
     return {"message": "Updated"}
 
 @api_router.patch("/promotions/{promotion_id}/reorder")
-async def reorder_promotion(promotion_id: str, request: Request):
-    """Update sort order for a promotion"""
-    user = await get_current_user(request)
-    role = await get_user_role(user) if user else "guest"
-    if role not in ["owner", "partner", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    body = await request.json()
-    sort_order = body.get("sort_order", 0)
-    
+async def reorder_promotion(promotion_id: str, data: dict, request: Request):
     await db.promotions.update_one(
         {"_id": promotion_id},
-        {"$set": {"sort_order": sort_order, "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"sort_order": data.get("sort_order", 0), "updated_at": datetime.now(timezone.utc)}}
     )
     return {"message": "Reordered"}
 
 @api_router.delete("/promotions/{promotion_id}")
 async def delete_promotion(promotion_id: str, request: Request):
-    user = await get_current_user(request)
-    role = await get_user_role(user) if user else "guest"
-    if role not in ["owner", "partner", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    await db.promotions.update_one({"_id": promotion_id}, {"$set": {"deleted_at": datetime.now(timezone.utc)}})
+    await db.promotions.update_one(
+        {"_id": promotion_id},
+        {"$set": {"deleted_at": datetime.now(timezone.utc)}}
+    )
     await manager.broadcast({"type": "sync", "tables": ["promotions"]})
     return {"message": "Deleted"}
 
-# ==================== Bundle Offer Routes (Marketing System) ====================
+# ==================== Bundle Offer Routes ====================
 
 @api_router.get("/bundle-offers")
-async def get_bundle_offers(active_only: bool = False):
-    """Get all bundle offers - public endpoint"""
+async def get_bundle_offers(active_only: bool = True):
     query = {"deleted_at": None}
     if active_only:
         query["is_active"] = True
-    
-    offers = await db.bundle_offers.find(query).sort("created_at", -1).to_list(1000)
+    offers = await db.bundle_offers.find(query).to_list(100)
     result = []
     for offer in offers:
-        o_data = serialize_doc(offer)
-        # Include target car model
-        if offer.get("target_car_model_id"):
-            model = await db.car_models.find_one({"_id": offer["target_car_model_id"]})
-            o_data["target_car_model"] = serialize_doc(model) if model else None
-        # Include products
+        offer_data = serialize_doc(offer)
         if offer.get("product_ids"):
             products = await db.products.find({"_id": {"$in": offer["product_ids"]}}).to_list(100)
-            o_data["products"] = [serialize_doc(p) for p in products]
-            # Calculate original and discounted totals
-            original_total = sum(p.get("price", 0) for p in products)
-            discounted_total = original_total * (1 - offer.get("discount_percentage", 0) / 100)
-            o_data["original_total"] = original_total
-            o_data["discounted_total"] = round(discounted_total, 2)
-            o_data["savings"] = round(original_total - discounted_total, 2)
-        result.append(o_data)
+            offer_data["products"] = [serialize_doc(p) for p in products]
+        result.append(offer_data)
     return result
 
 @api_router.get("/bundle-offers/{offer_id}")
@@ -1673,20 +2027,11 @@ async def get_bundle_offer(offer_id: str):
     offer = await db.bundle_offers.find_one({"_id": offer_id})
     if not offer:
         raise HTTPException(status_code=404, detail="Bundle offer not found")
-    
-    o_data = serialize_doc(offer)
-    if offer.get("target_car_model_id"):
-        model = await db.car_models.find_one({"_id": offer["target_car_model_id"]})
-        o_data["target_car_model"] = serialize_doc(model) if model else None
+    offer_data = serialize_doc(offer)
     if offer.get("product_ids"):
         products = await db.products.find({"_id": {"$in": offer["product_ids"]}}).to_list(100)
-        o_data["products"] = [serialize_doc(p) for p in products]
-        original_total = sum(p.get("price", 0) for p in products)
-        discounted_total = original_total * (1 - offer.get("discount_percentage", 0) / 100)
-        o_data["original_total"] = original_total
-        o_data["discounted_total"] = round(discounted_total, 2)
-        o_data["savings"] = round(original_total - discounted_total, 2)
-    return o_data
+        offer_data["products"] = [serialize_doc(p) for p in products]
+    return offer_data
 
 @api_router.post("/bundle-offers")
 async def create_bundle_offer(data: BundleOfferCreate, request: Request):
@@ -1695,17 +2040,16 @@ async def create_bundle_offer(data: BundleOfferCreate, request: Request):
     if role not in ["owner", "partner", "admin"]:
         raise HTTPException(status_code=403, detail="Access denied")
     
-    offer = {
+    doc = {
         "_id": f"bundle_{uuid.uuid4().hex[:8]}",
         **data.dict(),
-        "created_by": user["id"] if user else None,
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc),
         "deleted_at": None,
     }
-    await db.bundle_offers.insert_one(offer)
+    await db.bundle_offers.insert_one(doc)
     await manager.broadcast({"type": "sync", "tables": ["bundle_offers"]})
-    return serialize_doc(offer)
+    return serialize_doc(doc)
 
 @api_router.put("/bundle-offers/{offer_id}")
 async def update_bundle_offer(offer_id: str, data: BundleOfferCreate, request: Request):
@@ -1723,206 +2067,152 @@ async def update_bundle_offer(offer_id: str, data: BundleOfferCreate, request: R
 
 @api_router.delete("/bundle-offers/{offer_id}")
 async def delete_bundle_offer(offer_id: str, request: Request):
-    user = await get_current_user(request)
-    role = await get_user_role(user) if user else "guest"
-    if role not in ["owner", "partner", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
-    
-    await db.bundle_offers.update_one({"_id": offer_id}, {"$set": {"deleted_at": datetime.now(timezone.utc)}})
+    await db.bundle_offers.update_one(
+        {"_id": offer_id},
+        {"$set": {"deleted_at": datetime.now(timezone.utc)}}
+    )
     await manager.broadcast({"type": "sync", "tables": ["bundle_offers"]})
     return {"message": "Deleted"}
 
-# ==================== Combined Marketing Data Endpoint ====================
+# ==================== Marketing Home Slider ====================
 
 @api_router.get("/marketing/home-slider")
-async def get_home_slider_data():
-    """Get combined slider data for home screen - mix of promotions and bundle offers"""
-    # Get active sliders
-    sliders = await db.promotions.find({
+async def get_home_slider():
+    promotions = await db.promotions.find({
         "deleted_at": None,
         "is_active": True,
         "promotion_type": "slider"
-    }).sort("sort_order", 1).to_list(100)
+    }).sort("sort_order", 1).to_list(10)
     
-    # Get active bundle offers
-    offers = await db.bundle_offers.find({
+    bundles = await db.bundle_offers.find({
         "deleted_at": None,
         "is_active": True
-    }).sort("created_at", -1).to_list(100)
+    }).to_list(5)
     
-    result = []
+    slider_items = []
     
-    # Process sliders
-    for promo in sliders:
-        p_data = serialize_doc(promo)
-        p_data["type"] = "promotion"
-        if promo.get("target_product_id"):
-            product = await db.products.find_one({"_id": promo["target_product_id"]})
-            p_data["target_product"] = serialize_doc(product) if product else None
-        if promo.get("target_car_model_id"):
-            model = await db.car_models.find_one({"_id": promo["target_car_model_id"]})
-            p_data["target_car_model"] = serialize_doc(model) if model else None
-        result.append(p_data)
+    for promo in promotions:
+        slider_items.append({
+            "type": "promotion",
+            "id": promo["_id"],
+            "title": promo.get("title"),
+            "title_ar": promo.get("title_ar"),
+            "image": promo.get("image"),
+            "target_product_id": promo.get("target_product_id"),
+            "target_car_model_id": promo.get("target_car_model_id"),
+            "sort_order": promo.get("sort_order", 0),
+        })
     
-    # Process bundle offers
-    for offer in offers:
-        o_data = serialize_doc(offer)
-        o_data["type"] = "bundle_offer"
-        if offer.get("target_car_model_id"):
-            model = await db.car_models.find_one({"_id": offer["target_car_model_id"]})
-            o_data["target_car_model"] = serialize_doc(model) if model else None
-        if offer.get("product_ids"):
-            products = await db.products.find({"_id": {"$in": offer["product_ids"]}}).to_list(100)
-            original_total = sum(p.get("price", 0) for p in products)
-            discounted_total = original_total * (1 - offer.get("discount_percentage", 0) / 100)
-            o_data["original_total"] = original_total
-            o_data["discounted_total"] = round(discounted_total, 2)
-            o_data["product_count"] = len(products)
-        result.append(o_data)
+    for bundle in bundles:
+        slider_items.append({
+            "type": "bundle",
+            "id": bundle["_id"],
+            "title": bundle.get("name"),
+            "title_ar": bundle.get("name_ar"),
+            "image": bundle.get("image"),
+            "discount_percentage": bundle.get("discount_percentage"),
+            "product_ids": bundle.get("product_ids", []),
+            "sort_order": 100,
+        })
     
-    return result
+    slider_items.sort(key=lambda x: x.get("sort_order", 0))
+    return slider_items
 
 # ==================== Sync Routes ====================
 
 @api_router.post("/sync/pull")
-async def sync_pull(request_data: SyncPullRequest):
-    last_pulled_at = request_data.last_pulled_at or 0
-    tables = request_data.tables or ["car_brands", "car_models", "product_brands", "categories", "products", "suppliers", "distributors"]
-    last_dt = datetime.fromtimestamp(last_pulled_at / 1000, tz=timezone.utc) if last_pulled_at else datetime.min.replace(tzinfo=timezone.utc)
+async def sync_pull(data: SyncPullRequest):
+    result = {}
+    tables = data.tables or ["car_brands", "car_models", "product_brands", "categories", "products"]
     
-    changes = {}
     for table in tables:
-        coll = db[table]
-        created = await coll.find({"created_at": {"$gt": last_dt}, "deleted_at": None}).to_list(10000)
-        updated = await coll.find({"updated_at": {"$gt": last_dt}, "created_at": {"$lte": last_dt}, "deleted_at": None}).to_list(10000)
-        deleted = await coll.find({"deleted_at": {"$gt": last_dt}}).to_list(10000)
-        changes[table] = {
-            "created": [serialize_doc(d) for d in created],
-            "updated": [serialize_doc(d) for d in updated],
-            "deleted": [str(d["_id"]) for d in deleted],
-        }
+        collection = db[table]
+        query = {"deleted_at": None}
+        if data.last_pulled_at:
+            query["updated_at"] = {"$gt": datetime.fromtimestamp(data.last_pulled_at / 1000, tz=timezone.utc)}
+        
+        docs = await collection.find(query).to_list(10000)
+        result[table] = [serialize_doc(d) for d in docs]
     
-    return {"changes": changes, "timestamp": get_timestamp_ms()}
+    return {
+        "data": result,
+        "timestamp": get_timestamp_ms()
+    }
 
 # ==================== WebSocket ====================
 
 @api_router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    user_id = None
-    await manager.connect(websocket)
+async def websocket_endpoint(websocket: WebSocket, user_id: Optional[str] = None):
+    await manager.connect(websocket, user_id)
     try:
         while True:
-            data = await websocket.receive_json()
-            if data.get("type") == "auth":
-                token = data.get("token")
-                if token:
-                    session = await db.sessions.find_one({"session_token": token})
-                    if session:
-                        user_id = session["user_id"]
-                        manager.disconnect(websocket)
-                        await manager.connect(websocket, user_id)
-                        await websocket.send_json({"type": "auth_ok", "user_id": user_id})
-            elif data.get("type") == "ping":
+            data = await websocket.receive_text()
+            message = json.loads(data)
+            if message.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_id)
 
-# ==================== Health & Root ====================
-
-@api_router.get("/")
-async def root():
-    return {"message": "Al-Ghazaly Auto Parts API v3.0", "status": "running", "architecture": "offline-first-advanced"}
+# ==================== Health Check ====================
 
 @api_router.get("/health")
-async def health():
-    return {"status": "healthy", "database": "mongodb", "version": "3.0.0"}
+async def health_check():
+    return {"status": "healthy", "database": "mongodb", "version": "4.0.0"}
 
-# Include router
+# ==================== App Setup ====================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(api_router)
 
-app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-
 @app.on_event("startup")
-async def startup():
+async def startup_db_client():
     global client, db
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
-    logger.info("Connected to MongoDB - Advanced Owner Interface Backend v3.0")
+    logger.info(f"Connected to MongoDB - Unified Cart System Backend v4.0")
     
-    # Create indexes for better performance
-    await db.users.create_index("email")
-    await db.sessions.create_index("session_token")
-    await db.partners.create_index("email")
-    await db.admins.create_index("email")
-    await db.subscribers.create_index("email")
-    await db.products.create_index("added_by_admin_id")
-    await db.orders.create_index("user_id")
-    await db.orders.create_index("status")
-    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
-    
-    # Seed if needed
-    count = await db.car_brands.count_documents({})
-    if count == 0:
+    # Seed initial data if needed
+    existing_brands = await db.car_brands.count_documents({})
+    if existing_brands == 0:
         logger.info("Seeding database...")
         await seed_database()
-
-async def seed_database():
-    """Seed initial data"""
-    # Car Brands
-    await db.car_brands.insert_many([
-        {"_id": "cb_toyota", "name": "Toyota", "name_ar": "تويوتا", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cb_mitsubishi", "name": "Mitsubishi", "name_ar": "ميتسوبيشي", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cb_mazda", "name": "Mazda", "name_ar": "مازدا", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-    ])
-    
-    # Car Models
-    await db.car_models.insert_many([
-        {"_id": "cm_camry", "brand_id": "cb_toyota", "name": "Camry", "name_ar": "كامري", "year_start": 2018, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_corolla", "brand_id": "cb_toyota", "name": "Corolla", "name_ar": "كورولا", "year_start": 2019, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_hilux", "brand_id": "cb_toyota", "name": "Hilux", "name_ar": "هايلكس", "year_start": 2016, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_lancer", "brand_id": "cb_mitsubishi", "name": "Lancer", "name_ar": "لانسر", "year_start": 2015, "year_end": 2020, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_pajero", "brand_id": "cb_mitsubishi", "name": "Pajero", "name_ar": "باجيرو", "year_start": 2016, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_mazda3", "brand_id": "cb_mazda", "name": "Mazda 3", "name_ar": "مازدا 3", "year_start": 2019, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cm_cx5", "brand_id": "cb_mazda", "name": "CX-5", "name_ar": "سي اكس 5", "year_start": 2017, "year_end": 2024, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-    ])
-    
-    # Product Brands
-    await db.product_brands.insert_many([
-        {"_id": "pb_kby", "name": "KBY", "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "pb_ctr", "name": "CTR", "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "pb_art", "name": "ART", "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-    ])
-    
-    # Categories
-    await db.categories.insert_many([
-        {"_id": "cat_engine", "name": "Engine", "name_ar": "المحرك", "parent_id": None, "icon": "engine", "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_suspension", "name": "Suspension", "name_ar": "نظام التعليق", "parent_id": None, "icon": "car-suspension", "sort_order": 2, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_clutch", "name": "Clutch", "name_ar": "الكلتش", "parent_id": None, "icon": "car-clutch", "sort_order": 3, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_electricity", "name": "Electricity", "name_ar": "الكهرباء", "parent_id": None, "icon": "lightning-bolt", "sort_order": 4, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_body", "name": "Body", "name_ar": "البودي", "parent_id": None, "icon": "car-door", "sort_order": 5, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_tires", "name": "Tires", "name_ar": "الإطارات", "parent_id": None, "icon": "car-tire-alert", "sort_order": 6, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_filters", "name": "Filters", "name_ar": "الفلاتر", "parent_id": "cat_engine", "icon": "filter", "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_spark_plugs", "name": "Spark Plugs", "name_ar": "شمعات الاشتعال", "parent_id": "cat_engine", "icon": "flash", "sort_order": 2, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_shock_absorbers", "name": "Shock Absorbers", "name_ar": "ممتص الصدمات", "parent_id": "cat_suspension", "icon": "car-brake-abs", "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_batteries", "name": "Batteries", "name_ar": "البطاريات", "parent_id": "cat_electricity", "icon": "battery", "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_headlights", "name": "Headlights", "name_ar": "المصابيح الأمامية", "parent_id": "cat_electricity", "icon": "lightbulb", "sort_order": 2, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "cat_mirrors", "name": "Mirrors", "name_ar": "المرايا", "parent_id": "cat_body", "icon": "flip-horizontal", "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-    ])
-    
-    # Products
-    await db.products.insert_many([
-        {"_id": "prod_oil_filter_1", "name": "Toyota Oil Filter", "name_ar": "فلتر زيت تويوتا", "price": 45.99, "sku": "TOY-OIL-001", "category_id": "cat_filters", "product_brand_id": "pb_kby", "car_model_ids": ["cm_camry", "cm_corolla"], "stock_quantity": 50, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_air_filter_1", "name": "Camry Air Filter", "name_ar": "فلتر هواء كامري", "price": 35.50, "sku": "CAM-AIR-001", "category_id": "cat_filters", "product_brand_id": "pb_ctr", "car_model_ids": ["cm_camry"], "stock_quantity": 30, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_spark_plug_1", "name": "Iridium Spark Plugs Set", "name_ar": "طقم شمعات إريديوم", "price": 89.99, "sku": "SPK-IRD-001", "category_id": "cat_spark_plugs", "product_brand_id": "pb_art", "car_model_ids": ["cm_camry", "cm_corolla", "cm_lancer"], "stock_quantity": 25, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_shock_1", "name": "Front Shock Absorber", "name_ar": "ممتص صدمات أمامي", "price": 125.00, "sku": "SHK-FRT-001", "category_id": "cat_shock_absorbers", "product_brand_id": "pb_kby", "car_model_ids": ["cm_hilux", "cm_pajero"], "stock_quantity": 15, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_battery_1", "name": "Car Battery 70Ah", "name_ar": "بطارية سيارة 70 أمبير", "price": 185.00, "sku": "BAT-70A-001", "category_id": "cat_batteries", "product_brand_id": "pb_art", "car_model_ids": ["cm_camry", "cm_corolla", "cm_hilux", "cm_pajero"], "stock_quantity": 20, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_headlight_1", "name": "LED Headlight Bulb H7", "name_ar": "لمبة فانوس LED H7", "price": 55.00, "sku": "LED-H7-001", "category_id": "cat_headlights", "product_brand_id": "pb_kby", "car_model_ids": ["cm_mazda3", "cm_cx5"], "stock_quantity": 40, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_mirror_1", "name": "Side Mirror Right", "name_ar": "مرآة جانبية يمين", "price": 145.00, "sku": "MIR-R-001", "category_id": "cat_mirrors", "product_brand_id": "pb_ctr", "car_model_ids": ["cm_camry"], "stock_quantity": 10, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-        {"_id": "prod_clutch_kit_1", "name": "Complete Clutch Kit", "name_ar": "طقم كلتش كامل", "price": 299.99, "sku": "CLT-KIT-001", "category_id": "cat_clutch", "product_brand_id": "pb_ctr", "car_model_ids": ["cm_lancer", "cm_mazda3"], "stock_quantity": 8, "hidden_status": False, "settled": False, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
-    ])
-    
-    logger.info("Database seeded successfully")
+        logger.info("Database seeded successfully")
 
 @app.on_event("shutdown")
-async def shutdown():
-    client.close()
+async def shutdown_db_client():
+    global client
+    if client:
+        client.close()
+
+async def seed_database():
+    """Seed initial data for the application"""
+    # Seed car brands
+    car_brands = [
+        {"_id": "cb_toyota", "name": "Toyota", "name_ar": "تويوتا", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cb_honda", "name": "Honda", "name_ar": "هوندا", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cb_nissan", "name": "Nissan", "name_ar": "نيسان", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cb_hyundai", "name": "Hyundai", "name_ar": "هيونداي", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cb_kia", "name": "Kia", "name_ar": "كيا", "logo": None, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+    ]
+    await db.car_brands.insert_many(car_brands)
+    
+    # Seed categories
+    categories = [
+        {"_id": "cat_engine", "name": "Engine Parts", "name_ar": "قطع المحرك", "icon": "engine", "parent_id": None, "sort_order": 1, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cat_brakes", "name": "Brakes", "name_ar": "الفرامل", "icon": "disc", "parent_id": None, "sort_order": 2, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cat_suspension", "name": "Suspension", "name_ar": "نظام التعليق", "icon": "car", "parent_id": None, "sort_order": 3, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cat_electrical", "name": "Electrical", "name_ar": "الكهربائيات", "icon": "flash", "parent_id": None, "sort_order": 4, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+        {"_id": "cat_body", "name": "Body Parts", "name_ar": "قطع الهيكل", "icon": "car-sport", "parent_id": None, "sort_order": 5, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "deleted_at": None},
+    ]
+    await db.categories.insert_many(categories)
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
