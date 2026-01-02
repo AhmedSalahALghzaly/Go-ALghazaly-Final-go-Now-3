@@ -354,7 +354,7 @@ class APITester:
             ("GET", "/api/orders/pending-count/test-user"),
             ("POST", "/api/admin/orders/create"),
             ("DELETE", "/api/orders/test-order"),
-            ("PATCH", "/api/orders/test-order/status"),
+            ("PATCH", "/api/orders/test-order/status?status=preparing"),
             ("GET", "/api/cart"),
             ("POST", "/api/cart/add"),
             ("PUT", "/api/cart/update")
