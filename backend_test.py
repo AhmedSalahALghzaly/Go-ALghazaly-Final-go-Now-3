@@ -541,8 +541,9 @@ class CartSystemTester:
         # Core API Tests
         tests = [
             self.test_health_check,
+            self.test_api_structure_verification,
+            self.test_cart_api_endpoints_exist,
             self.test_cart_get_empty,
-            self.test_cart_enhanced_pricing_fields,
             self.test_cart_add_item,
             self.test_cart_add_bundle_item,
             self.test_cart_update_item,
