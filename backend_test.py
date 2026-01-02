@@ -501,6 +501,7 @@ class CartSystemTester:
         
         # Setup
         self.setup_test_user()
+        self.get_existing_product()
         
         # Core API Tests
         tests = [
