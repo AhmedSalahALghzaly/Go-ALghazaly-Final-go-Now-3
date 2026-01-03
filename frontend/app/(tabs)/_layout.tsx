@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useAppStore, useCanAccessAdminPanel } from '../../src/store/appStore';
+import { AdvancedSearchBottomSheet } from '../../src/components/ui/AdvancedSearchBottomSheet';
 
 // Owner email that can always access the interface
 const OWNER_EMAIL = 'pc.2025.ai@gmail.com';
@@ -21,6 +22,9 @@ export default function TabLayout() {
   const admins = useAppStore((state) => state.admins);
   const userRole = useAppStore((state) => state.userRole);
   const canAccessAdminPanel = useCanAccessAdminPanel();
+  
+  // State for advanced search bottom sheet
+  const [showSearch, setShowSearch] = useState(false);
   
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
@@ -146,13 +150,41 @@ export default function TabLayout() {
             },
           }}
         />
+        {/* Advanced Search Tab - Replaces Profile */}
         <Tabs.Screen
           name="profile"
           options={{
-            title: t('profile'),
+            title: language === 'ar' ? 'بحث' : 'Search',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="person" size={size} color={color} />
+              <Ionicons name="search" size={size} color={color} />
             ),
+            tabBarButton: (props) => (
+              <TouchableOpacity
+                {...props}
+                onPress={() => setShowSearch(true)}
+                style={[props.style, { alignItems: 'center', justifyContent: 'center' }]}
+              >
+                <Ionicons 
+                  name="search" 
+                  size={24} 
+                  color={colors.tabBarInactive} 
+                />
+                <Text style={{ 
+                  fontSize: 12, 
+                  fontWeight: '600', 
+                  color: colors.tabBarInactive,
+                  marginTop: 2,
+                }}>
+                  {language === 'ar' ? 'بحث' : 'Search'}
+                </Text>
+              </TouchableOpacity>
+            ),
+          }}
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              setShowSearch(true);
+            },
           }}
         />
       </Tabs>
@@ -163,6 +195,12 @@ export default function TabLayout() {
           <CenterAccessButton />
         </View>
       )}
+
+      {/* Advanced Search Bottom Sheet */}
+      <AdvancedSearchBottomSheet 
+        visible={showSearch} 
+        onClose={() => setShowSearch(false)} 
+      />
     </View>
   );
 }
