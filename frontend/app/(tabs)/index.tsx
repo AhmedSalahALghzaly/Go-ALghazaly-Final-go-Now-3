@@ -34,7 +34,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const { t, isRTL, language } = useTranslation();
   const router = useRouter();
-  const { user, addToLocalCart } = useAppStore();
+  const { user, addToLocalCart, setCategories: setGlobalCategories, setCarBrands: setGlobalCarBrands, setProducts: setGlobalProducts, setCarModels: setGlobalCarModels, setProductBrands: setGlobalProductBrands } = useAppStore();
 
   const [categories, setCategories] = useState<any[]>([]);
   const [carBrands, setCarBrands] = useState<any[]>([]);
@@ -64,14 +64,29 @@ export default function HomeScreen() {
         carBrandsApi.getAll(),
         carModelsApi.getAll(),
         productBrandsApi.getAll(),
-        productsApi.getAll({ limit: 20 }),
+        productsApi.getAll({ limit: 100 }),
       ]);
-      setCategories(catsRes.data || []);
-      setCarBrands(carBrandsRes.data || []);
-      setCarModels(carModelsRes.data || []);
-      setProductBrands(prodBrandsRes.data || []);
-      setProducts(productsRes.data?.products || []);
-      setFilteredProducts(productsRes.data?.products || []);
+      
+      const categoriesData = catsRes.data || [];
+      const carBrandsData = carBrandsRes.data || [];
+      const carModelsData = carModelsRes.data || [];
+      const productBrandsData = prodBrandsRes.data || [];
+      const productsData = productsRes.data?.products || [];
+      
+      // Set local state
+      setCategories(categoriesData);
+      setCarBrands(carBrandsData);
+      setCarModels(carModelsData);
+      setProductBrands(productBrandsData);
+      setProducts(productsData);
+      setFilteredProducts(productsData);
+      
+      // Also set in global store for AdvancedSearch to use
+      setGlobalCategories(categoriesData);
+      setGlobalCarBrands(carBrandsData);
+      setGlobalCarModels(carModelsData);
+      setGlobalProductBrands(productBrandsData);
+      setGlobalProducts(productsData);
 
       // Fetch favorites if user is logged in
       if (user) {
