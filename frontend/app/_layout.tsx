@@ -5,7 +5,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useAppStore, useHasHydrated, useUser } from '../src/store/appStore';
-import { WebSocketProvider } from '../src/hooks/useWebSocket';
 
 // Auth Guard Component - Monitors auth state and handles navigation
 function AuthGuard({ children }: { children: React.ReactNode }) {
