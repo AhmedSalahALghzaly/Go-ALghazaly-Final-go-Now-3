@@ -168,7 +168,12 @@ export default function OrdersScreen() {
             filteredOrders.map((order: any) => {
               const statusConfig = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
               return (
-                <TouchableOpacity key={order.id} style={styles.orderCard}>
+                <TouchableOpacity 
+                  key={order.id} 
+                  style={styles.orderCard}
+                  onPress={() => router.push(`/admin/order/${order.id}`)}
+                  activeOpacity={0.7}
+                >
                   <BlurView intensity={15} tint="light" style={styles.orderBlur}>
                     {/* Status Badge */}
                     <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '30' }]}>
