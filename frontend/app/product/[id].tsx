@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
-  Animated,
+  Animated as RNAnimated,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,18 @@ import { useTranslation } from '../../src/hooks/useTranslation';
 import { useAppStore } from '../../src/store/appStore';
 import { productsApi, cartApi, commentsApi, favoritesApi } from '../../src/services/api';
 import { AnimatedFavoriteButton, AnimatedCartButton } from '../../src/components/AnimatedIconButton';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring, 
+  withSequence, 
+  withTiming,
+  interpolate,
+  Extrapolation,
+  runOnJS,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface Comment {
   id: string;
