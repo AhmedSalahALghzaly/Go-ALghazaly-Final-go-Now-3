@@ -88,9 +88,9 @@ export default function OrderDetailAdmin() {
             setUpdatingStatus('cancelled');
             try {
               await new Promise(resolve => setTimeout(resolve, 1000));
-              await orderApi.updateStatus(id as string, 'cancelled');
-              setOrder((prev: any) => ({ ...prev, status: 'cancelled' }));
-            } catch (error: any) {
+              await orderApi.updateStatus(id, 'cancelled');
+              setOrder((prev) => ({ ...prev, status: 'cancelled' }));
+            } catch (error) {
               Alert.alert('Error', error.response?.data?.detail || 'Failed to cancel order');
             } finally {
               setUpdatingStatus(null);
@@ -113,13 +113,13 @@ export default function OrderDetailAdmin() {
           onPress: async () => {
             setDeleting(true);
             try {
-              await orderApi.delete(id as string);
+              await orderApi.delete(id);
               Alert.alert(
                 language === 'ar' ? 'تم' : 'Done',
                 language === 'ar' ? 'تم حذف الطلب بنجاح' : 'Order deleted successfully',
                 [{ text: 'OK', onPress: () => router.back() }]
               );
-            } catch (error: any) {
+            } catch (error) {
               Alert.alert('Error', error.response?.data?.detail || 'Failed to delete order');
               setDeleting(false);
             }
