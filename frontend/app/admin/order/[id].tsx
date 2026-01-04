@@ -13,7 +13,7 @@ const SHIPPING_COST = 150;
 
 // Status flow configuration
 const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'shipped', 'out_for_delivery', 'delivered'];
-const STATUS_COLORS: { [key: string]: string } = {
+const STATUS_COLORS = {
   pending: '#F59E0B',
   confirmed: '#EF4444',
   preparing: '#FBBF24',
