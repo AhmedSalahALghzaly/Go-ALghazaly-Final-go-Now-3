@@ -23,15 +23,15 @@ export default function CustomersAdmin() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [pendingOrderCounts, setPendingOrderCounts] = useState<{ [key: string]: number }>({});
-  const [customerOrderStatus, setCustomerOrderStatus] = useState<{[key: string]: { status: string; activeCount: number }}>({});
+  const [customers, setCustomers] = useState([]);
+  const [pendingOrderCounts, setPendingOrderCounts] = useState({});
+  const [customerOrderStatus, setCustomerOrderStatus] = useState({});
   const [loading, setLoading] = useState(true);
 
   // Customer Profile State
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [initialTab, setInitialTab] = useState<'profile' | 'favorites' | 'cart' | 'checkout' | 'orders'>('favorites');
+  const [initialTab, setInitialTab] = useState('favorites');
 
   // Pulsing animation for order indicator
   const pulseAnim = useRef(new Animated.Value(1)).current;
