@@ -58,14 +58,14 @@ export default function OrderDetailAdmin() {
     }
   };
 
-  const updateOrderStatus = useCallback(async (newStatus: string) => {
+  const updateOrderStatus = useCallback(async (newStatus) => {
     setUpdatingStatus(newStatus);
     try {
       // Show loading for 1 second as per requirement
       await new Promise(resolve => setTimeout(resolve, 1000));
-      await orderApi.updateStatus(id as string, newStatus);
-      setOrder((prev: any) => ({ ...prev, status: newStatus }));
-    } catch (error: any) {
+      await orderApi.updateStatus(id, newStatus);
+      setOrder((prev) => ({ ...prev, status: newStatus }));
+    } catch (error) {
       Alert.alert(
         language === 'ar' ? 'خطأ' : 'Error',
         error.response?.data?.detail || 'Failed to update status'
