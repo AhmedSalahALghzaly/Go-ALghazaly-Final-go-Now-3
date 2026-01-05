@@ -197,7 +197,7 @@ export default function ProfileScreen() {
               styles.menuItem, 
               { backgroundColor: colors.card, borderColor: colors.border }
             ]}
-            onPress={() => router.push('/orders')}
+            onPress={() => router.push('/(tabs)/cart?tab=orders')}
           >
             <View style={styles.menuLeft}>
               <View style={[styles.menuIcon, { backgroundColor: colors.primary + '15' }]}>
