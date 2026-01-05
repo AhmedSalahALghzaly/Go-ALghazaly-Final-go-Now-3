@@ -55,7 +55,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     console.log('Auth Guard: Checking auth...', { isAuthenticated, user: user?.email, segments });
 
     const inAuthGroup = segments[0] === 'login';
-    const inProtectedRoute = segments[0] === 'admin' || segments[0] === 'owner' || 
+    const inProtectedRoute = segments[0] === 'owner' || 
                             segments[0] === 'checkout' || segments[0] === 'orders' ||
                             segments[0] === 'favorites';
 
