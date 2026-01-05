@@ -55,6 +55,13 @@ export default function HomeScreen() {
   // Favorites state
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
+  // Product quantities state
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
+
+  // Cart loading states
+  const [cartLoadingStates, setCartLoadingStates] = useState<Record<string, boolean>>({});
+  const [addedToCartStates, setAddedToCartStates] = useState<Record<string, boolean>>({});
+
   // Banners state (promotions with type 'banner')
   const [banners, setBanners] = useState<any[]>([]);
 
