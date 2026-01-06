@@ -1,8 +1,8 @@
 /**
  * Owner Interface Dashboard
- * The advanced owner interface with icon grid and live metrics with deep-linking
+ * Advanced owner interface with reorganized icon grids, live metrics, and Partner management
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,12 @@ import {
   TouchableOpacity,
   Dimensions,
   StatusBar,
+  Modal,
+  TextInput,
+  Animated,
+  PanResponder,
+  Vibration,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -21,18 +27,22 @@ import * as Haptics from 'expo-haptics';
 import { useAppStore, useColorMood } from '../../src/store/appStore';
 import { SyncIndicator } from '../../src/components/ui/SyncIndicator';
 import { useWebSocket } from '../../src/services/websocketService';
+import { adminApi } from '../../src/services/api';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// Dashboard icon configuration
-const DASHBOARD_ICONS = [
+// Management Grid Icons - RTL Order (Right to Left per row)
+const MANAGEMENT_ICONS_ROW1 = [
   { id: 'customers', icon: 'people', label: 'Customers', labelAr: 'العملاء', color: '#3B82F6', route: '/owner/customers' },
   { id: 'admins', icon: 'shield-checkmark', label: 'Admins', labelAr: 'المسؤولين', color: '#10B981', route: '/owner/admins' },
+  { id: 'suppliers', icon: 'briefcase', label: 'Suppliers', labelAr: 'الموردون', color: '#14B8A6', route: '/owner/suppliers' },
+  { id: 'distributors', icon: 'car', label: 'Distributors', labelAr: 'الموزعون', color: '#EF4444', route: '/owner/distributors' },
+];
+
+const MANAGEMENT_ICONS_ROW2 = [
+  { id: 'analytics', icon: 'bar-chart', label: 'Analytics', labelAr: 'التحليلات', color: '#EC4899', route: '/owner/analytics' },
   { id: 'collection', icon: 'cube', label: 'Collection', labelAr: 'المجموعة', color: '#F59E0B', route: '/owner/collection' },
   { id: 'subscriptions', icon: 'card', label: 'Subscriptions', labelAr: 'الاشتراكات', color: '#8B5CF6', route: '/owner/subscriptions' },
-  { id: 'analytics', icon: 'bar-chart', label: 'Analytics', labelAr: 'التحليلات', color: '#EC4899', route: '/owner/analytics' },
-  { id: 'suppliers', icon: 'briefcase', label: 'Suppliers', labelAr: 'الموردين', color: '#14B8A6', route: '/owner/suppliers' },
-  { id: 'distributors', icon: 'car', label: 'Distributors', labelAr: 'الموزعين', color: '#EF4444', route: '/owner/distributors' },
   { id: 'settings', icon: 'settings', label: 'Settings', labelAr: 'الإعدادات', color: '#6B7280', route: '/owner/settings' },
 ];
 
@@ -46,6 +56,26 @@ export default function OwnerDashboard() {
   const customers = useAppStore((state) => state.customers);
   const products = useAppStore((state) => state.products);
   const setOrderFilter = useAppStore((state) => state.setOrderFilter);
+
+  // Partner management state
+  const [showPartnersModal, setShowPartnersModal] = useState(false);
+  const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
+  const [partners, setPartners] = useState<any[]>([]);
+  const [partnerEmail, setPartnerEmail] = useState('');
+  const [addingPartner, setAddingPartner] = useState(false);
+  const [addSuccess, setAddSuccess] = useState(false);
+  const [partnerError, setPartnerError] = useState('');
+  const [loadingPartners, setLoadingPartners] = useState(false);
+  
+  // Drag to delete state
+  const [deletingPartner, setDeletingPartner] = useState<any>(null);
+  const [showTrashZone, setShowTrashZone] = useState(false);
+  const trashOpacity = useRef(new Animated.Value(0)).current;
+  const dragPosition = useRef(new Animated.ValueXY()).current;
+
+  // Long press gesture state for Partners icon
+  const partnersLongPressTimer = useRef<any>(null);
+  const [isLongPressing, setIsLongPressing] = useState(false);
 
   // Default mood fallback
   const defaultMood = {
@@ -65,10 +95,7 @@ export default function OwnerDashboard() {
     gradient: ['#1E1E3F', '#2D2D5F', '#3D3D7F'],
   };
 
-  // Use stored mood or default
   const mood = storedMood || defaultMood;
-
-  // Get gradient colors safely
   const gradientColors = (mood as any).gradient && Array.isArray((mood as any).gradient) && (mood as any).gradient.length >= 3
     ? (mood as any).gradient
     : ['#1E1E3F', '#2D2D5F', '#3D3D7F'];
@@ -91,12 +118,31 @@ export default function OwnerDashboard() {
 
   const isRTL = language === 'ar';
 
+  // Fetch partners on mount
+  useEffect(() => {
+    fetchPartners();
+  }, []);
+
+  const fetchPartners = async () => {
+    setLoadingPartners(true);
+    try {
+      const response = await adminApi.getAllAdmins();
+      const allAdmins = response.data || [];
+      // Filter to get partners (role = 'partner') and owner
+      const partnersList = allAdmins.filter((a: any) => a.role === 'partner' || a.role === 'owner');
+      setPartners(partnersList);
+    } catch (error) {
+      console.error('Error fetching partners:', error);
+    } finally {
+      setLoadingPartners(false);
+    }
+  };
+
   const handleIconPress = (route: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(route as any);
   };
 
-  // Handle metric press - deep link to filtered orders
   const handleMetricPress = (metricType: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
@@ -125,6 +171,139 @@ export default function OwnerDashboard() {
       default:
         break;
     }
+  };
+
+  // Partners icon handlers
+  const handlePartnersTap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowPartnersModal(true);
+  };
+
+  const handlePartnersLongPressStart = () => {
+    partnersLongPressTimer.current = setTimeout(() => {
+      setIsLongPressing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }, 500);
+  };
+
+  const handlePartnersLongPressEnd = () => {
+    if (partnersLongPressTimer.current) {
+      clearTimeout(partnersLongPressTimer.current);
+    }
+    if (isLongPressing) {
+      // Long press + release = open add partner modal
+      setIsLongPressing(false);
+      setShowAddPartnerModal(true);
+    }
+  };
+
+  const handleAddPartner = async () => {
+    if (!partnerEmail.trim()) {
+      setPartnerError(language === 'ar' ? 'يرجى إدخال البريد الإلكتروني' : 'Please enter an email');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(partnerEmail.trim())) {
+      setPartnerError(language === 'ar' ? 'بريد إلكتروني غير صالح' : 'Invalid email format');
+      return;
+    }
+
+    setAddingPartner(true);
+    setPartnerError('');
+
+    try {
+      await adminApi.addAdmin({
+        email: partnerEmail.trim().toLowerCase(),
+        role: 'partner',
+      });
+      
+      setAddSuccess(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      setTimeout(() => {
+        setShowAddPartnerModal(false);
+        setPartnerEmail('');
+        setAddSuccess(false);
+        fetchPartners();
+      }, 1500);
+    } catch (error: any) {
+      setPartnerError(error.response?.data?.detail || (language === 'ar' ? 'فشل في إضافة الشريك' : 'Failed to add partner'));
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setAddingPartner(false);
+    }
+  };
+
+  const handleDeletePartner = async (partner: any) => {
+    try {
+      await adminApi.removeAdmin(partner.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      fetchPartners();
+    } catch (error) {
+      console.error('Error deleting partner:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  };
+
+  // Start drag to delete
+  const startDragDelete = (partner: any) => {
+    if (partner.role === 'owner') return; // Can't delete owner
+    
+    Vibration.vibrate(100);
+    setDeletingPartner(partner);
+    setShowTrashZone(true);
+    
+    Animated.timing(trashOpacity, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // End drag
+  const endDrag = (inTrashZone: boolean) => {
+    if (inTrashZone && deletingPartner) {
+      handleDeletePartner(deletingPartner);
+    }
+    
+    Animated.timing(trashOpacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowTrashZone(false);
+      setDeletingPartner(null);
+      dragPosition.setValue({ x: 0, y: 0 });
+    });
+  };
+
+  // Render icon row with RTL support
+  const renderIconRow = (icons: typeof MANAGEMENT_ICONS_ROW1) => {
+    const orderedIcons = isRTL ? [...icons].reverse() : icons;
+    
+    return (
+      <View style={[styles.iconRow, isRTL && styles.iconRowRTL]}>
+        {orderedIcons.map((item) => (
+          <TouchableOpacity
+            key={item.id}
+            style={styles.iconCard}
+            onPress={() => handleIconPress(item.route)}
+            activeOpacity={0.7}
+          >
+            <BlurView intensity={20} tint="light" style={styles.iconBlur}>
+              <View style={[styles.iconCircle, { backgroundColor: item.color + '30' }]}>
+                <Ionicons name={item.icon as any} size={28} color={item.color} />
+              </View>
+              <Text style={styles.iconLabel}>
+                {isRTL ? item.labelAr : item.label}
+              </Text>
+            </BlurView>
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
   };
 
   return (
@@ -157,46 +336,45 @@ export default function OwnerDashboard() {
             />
           </TouchableOpacity>
 
-          <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>
+          <View style={[styles.headerTitleContainer, isRTL && styles.headerTitleContainerRTL]}>
+            <Text style={[styles.headerTitle, isRTL && styles.textRTL]}>
               {language === 'ar' ? 'لوحة التحكم' : 'Owner Dashboard'}
             </Text>
-            <Text style={styles.headerSubtitle}>
+            <Text style={[styles.headerSubtitle, isRTL && styles.textRTL]}>
               {user?.name || user?.email}
             </Text>
           </View>
 
+          {/* Partners Icon */}
+          <TouchableOpacity
+            style={styles.partnersButton}
+            onPress={handlePartnersTap}
+            onPressIn={handlePartnersLongPressStart}
+            onPressOut={handlePartnersLongPressEnd}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="people-circle-outline" size={28} color="rgba(255,255,255,0.9)" />
+            <Text style={styles.partnersButtonText}>
+              {language === 'ar' ? 'الشركاء' : 'Partners'}
+            </Text>
+          </TouchableOpacity>
+
           <SyncIndicator compact />
         </View>
 
-        {/* Icon Grid */}
+        {/* Management Grid */}
         <View style={styles.gridContainer}>
           <Text style={[styles.sectionTitle, isRTL && styles.textRTL]}>
             {language === 'ar' ? 'الإدارة' : 'Management'}
           </Text>
           
           <View style={styles.iconGrid}>
-            {DASHBOARD_ICONS.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.iconCard}
-                onPress={() => handleIconPress(item.route)}
-                activeOpacity={0.7}
-              >
-                <BlurView intensity={20} tint="light" style={styles.iconBlur}>
-                  <View style={[styles.iconCircle, { backgroundColor: item.color + '30' }]}>
-                    <Ionicons name={item.icon as any} size={28} color={item.color} />
-                  </View>
-                  <Text style={styles.iconLabel}>
-                    {isRTL ? item.labelAr : item.label}
-                  </Text>
-                </BlurView>
-              </TouchableOpacity>
-            ))}
+            {renderIconRow(MANAGEMENT_ICONS_ROW1)}
+            {renderIconRow(MANAGEMENT_ICONS_ROW2)}
           </View>
         </View>
 
-        {/* Live Metrics Panel - Clickable */}
+        {/* Live Metrics Panel */}
         <View style={styles.metricsContainer}>
           <Text style={[styles.sectionTitle, isRTL && styles.textRTL]}>
             {language === 'ar' ? 'المقاييس الحية' : 'Live Metrics'}
@@ -205,36 +383,8 @@ export default function OwnerDashboard() {
             {language === 'ar' ? 'اضغط للتفاصيل' : 'Tap for details'}
           </Text>
 
-          <View style={styles.metricsGrid}>
-            <MetricCard
-              icon="receipt"
-              label={language === 'ar' ? 'طلبات اليوم' : 'Today Orders'}
-              value={metrics.todayOrders}
-              color="#3B82F6"
-              onPress={() => handleMetricPress('todayOrders')}
-            />
-            <MetricCard
-              icon="time"
-              label={language === 'ar' ? 'قيد الانتظار' : 'Pending'}
-              value={metrics.pendingOrders}
-              color="#F59E0B"
-              pulse={metrics.pendingOrders > 0}
-              onPress={() => handleMetricPress('pendingOrders')}
-            />
-            <MetricCard
-              icon="cash"
-              label={language === 'ar' ? 'الإيرادات' : 'Revenue'}
-              value={`${(metrics.totalRevenue / 1000).toFixed(1)}K`}
-              color="#10B981"
-              onPress={() => handleMetricPress('totalRevenue')}
-            />
-            <MetricCard
-              icon="people"
-              label={language === 'ar' ? 'العملاء' : 'Customers'}
-              value={metrics.activeCustomers}
-              color="#8B5CF6"
-              onPress={() => handleMetricPress('activeCustomers')}
-            />
+          {/* Metrics Row 1 (RTL: Products, Low Stock, Revenue) */}
+          <View style={[styles.metricsRow, isRTL && styles.metricsRowRTL]}>
             <MetricCard
               icon="cube"
               label={language === 'ar' ? 'المنتجات' : 'Products'}
@@ -250,6 +400,39 @@ export default function OwnerDashboard() {
               pulse={metrics.lowStock > 0}
               onPress={() => handleMetricPress('lowStock')}
             />
+            <MetricCard
+              icon="cash"
+              label={language === 'ar' ? 'الإيرادات' : 'Revenue'}
+              value={`${(metrics.totalRevenue / 1000).toFixed(1)}K`}
+              color="#10B981"
+              onPress={() => handleMetricPress('totalRevenue')}
+            />
+          </View>
+
+          {/* Metrics Row 2 (RTL: Customers, Today's Orders, Pending) */}
+          <View style={[styles.metricsRow, isRTL && styles.metricsRowRTL, { marginTop: 12 }]}>
+            <MetricCard
+              icon="people"
+              label={language === 'ar' ? 'العملاء' : 'Customers'}
+              value={metrics.activeCustomers}
+              color="#8B5CF6"
+              onPress={() => handleMetricPress('activeCustomers')}
+            />
+            <MetricCard
+              icon="receipt"
+              label={language === 'ar' ? 'طلبات اليوم' : "Today's Orders"}
+              value={metrics.todayOrders}
+              color="#3B82F6"
+              onPress={() => handleMetricPress('todayOrders')}
+            />
+            <MetricCard
+              icon="time"
+              label={language === 'ar' ? 'قيد الانتظار' : 'Pending'}
+              value={metrics.pendingOrders}
+              color="#F59E0B"
+              pulse={metrics.pendingOrders > 0}
+              onPress={() => handleMetricPress('pendingOrders')}
+            />
           </View>
         </View>
 
@@ -259,7 +442,7 @@ export default function OwnerDashboard() {
             {language === 'ar' ? 'إحصائيات سريعة' : 'Quick Stats'}
           </Text>
           
-          <View style={styles.quickStatsRow}>
+          <View style={[styles.quickStatsRow, isRTL && styles.quickStatsRowRTL]}>
             <View style={styles.quickStatCard}>
               <BlurView intensity={15} tint="light" style={styles.quickStatBlur}>
                 <Text style={styles.quickStatValue}>
@@ -293,14 +476,218 @@ export default function OwnerDashboard() {
           </View>
         </View>
 
+        {/* Footer */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            {language === 'ar' ? 'الغزالي لقطع غيار السيارات' : 'Al-Ghazaly Auto Parts'}
+          </Text>
+          <Text style={styles.footerVersion}>v2.0 - Owner Edition</Text>
+        </View>
+
         {/* Bottom padding */}
         <View style={{ height: insets.bottom + 40 }} />
       </ScrollView>
+
+      {/* Partners List Modal */}
+      <Modal
+        visible={showPartnersModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPartnersModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          
+          {/* Trash Zone (appears when dragging) */}
+          {showTrashZone && (
+            <Animated.View style={[styles.trashZone, { opacity: trashOpacity }]}>
+              <Ionicons name="trash" size={40} color="#EF4444" />
+              <Text style={styles.trashZoneText}>
+                {language === 'ar' ? 'اسحب هنا للحذف' : 'Drop here to delete'}
+              </Text>
+            </Animated.View>
+          )}
+
+          <View style={[styles.partnersModal, { marginTop: insets.top + 60 }]}>
+            {/* Modal Header */}
+            <View style={[styles.partnersModalHeader, isRTL && styles.partnersModalHeaderRTL]}>
+              <Text style={styles.partnersModalTitle}>
+                {language === 'ar' ? 'الشركاء والمالك' : 'Partners & Owner'}
+              </Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setShowPartnersModal(false)}
+              >
+                <Ionicons name="close" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Hint Text */}
+            <Text style={styles.partnersHint}>
+              {language === 'ar' 
+                ? 'اضغط مطولاً ثم اسحب للحذف' 
+                : 'Long press and drag to delete'}
+            </Text>
+
+            {/* Partners List */}
+            <ScrollView style={styles.partnersList}>
+              {loadingPartners ? (
+                <ActivityIndicator size="large" color="#3B82F6" />
+              ) : partners.length === 0 ? (
+                <Text style={styles.noPartnersText}>
+                  {language === 'ar' ? 'لا يوجد شركاء' : 'No partners yet'}
+                </Text>
+              ) : (
+                partners.map((partner) => (
+                  <TouchableOpacity
+                    key={partner.id}
+                    style={[
+                      styles.partnerItem,
+                      partner.role === 'owner' && styles.partnerItemOwner,
+                      deletingPartner?.id === partner.id && styles.partnerItemDragging,
+                    ]}
+                    onLongPress={() => startDragDelete(partner)}
+                    delayLongPress={500}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.partnerAvatar, { backgroundColor: partner.role === 'owner' ? '#F59E0B' : '#3B82F6' }]}>
+                      <Ionicons 
+                        name={partner.role === 'owner' ? 'star' : 'person'} 
+                        size={20} 
+                        color="#FFF" 
+                      />
+                    </View>
+                    <View style={styles.partnerInfo}>
+                      <Text style={styles.partnerEmail}>{partner.email}</Text>
+                      <Text style={styles.partnerRole}>
+                        {partner.role === 'owner' 
+                          ? (language === 'ar' ? 'المالك' : 'Owner')
+                          : (language === 'ar' ? 'شريك' : 'Partner')
+                        }
+                      </Text>
+                    </View>
+                    {partner.role !== 'owner' && (
+                      <TouchableOpacity
+                        style={styles.partnerDeleteBtn}
+                        onPress={() => handleDeletePartner(partner)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+
+            {/* Add Partner Button */}
+            <TouchableOpacity
+              style={styles.addPartnerBtn}
+              onPress={() => {
+                setShowPartnersModal(false);
+                setTimeout(() => setShowAddPartnerModal(true), 300);
+              }}
+            >
+              <Ionicons name="add-circle" size={20} color="#FFF" />
+              <Text style={styles.addPartnerBtnText}>
+                {language === 'ar' ? 'إضافة شريك جديد' : 'Add New Partner'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Partner Modal */}
+      <Modal
+        visible={showAddPartnerModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowAddPartnerModal(false);
+          setPartnerEmail('');
+          setPartnerError('');
+          setAddSuccess(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={100} tint="dark" style={StyleSheet.absoluteFill} />
+          
+          <View style={styles.addPartnerModal}>
+            {addSuccess ? (
+              /* Success Animation */
+              <View style={styles.successContainer}>
+                <View style={styles.successCircle}>
+                  <Ionicons name="checkmark" size={60} color="#10B981" />
+                </View>
+                <Text style={styles.successText}>
+                  {language === 'ar' ? 'تمت الإضافة بنجاح!' : 'Partner Added!'}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Modal Header */}
+                <View style={styles.addPartnerHeader}>
+                  <Text style={styles.addPartnerTitle}>
+                    {language === 'ar' ? 'إضافة شريك جديد' : 'Add New Partner'}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.modalCloseBtn}
+                    onPress={() => {
+                      setShowAddPartnerModal(false);
+                      setPartnerEmail('');
+                      setPartnerError('');
+                    }}
+                  >
+                    <Ionicons name="close" size={24} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Email Input */}
+                <View style={styles.emailInputContainer}>
+                  <Ionicons name="mail-outline" size={22} color="rgba(255,255,255,0.6)" />
+                  <TextInput
+                    style={styles.emailInput}
+                    value={partnerEmail}
+                    onChangeText={setPartnerEmail}
+                    placeholder={language === 'ar' ? 'البريد الإلكتروني للشريك' : "Partner's email address"}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+
+                {/* Error Message */}
+                {partnerError ? (
+                  <Text style={styles.errorText}>{partnerError}</Text>
+                ) : null}
+
+                {/* Add Button */}
+                <TouchableOpacity
+                  style={[styles.confirmAddBtn, addingPartner && styles.confirmAddBtnDisabled]}
+                  onPress={handleAddPartner}
+                  disabled={addingPartner}
+                >
+                  {addingPartner ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add" size={20} color="#FFF" />
+                      <Text style={styles.confirmAddBtnText}>
+                        {language === 'ar' ? 'إضافة الشريك' : 'Add Partner'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
-// Metric Card Component with Press Handler
+// Metric Card Component
 interface MetricCardProps {
   icon: string;
   label: string;
@@ -359,6 +746,9 @@ const styles = StyleSheet.create({
   headerTitleContainer: {
     flex: 1,
   },
+  headerTitleContainerRTL: {
+    alignItems: 'flex-end',
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: '700',
@@ -366,6 +756,16 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
+  },
+  partnersButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  partnersButtonText: {
+    fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
   },
@@ -387,13 +787,19 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
     marginTop: 12,
+    gap: 12,
+  },
+  iconRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  iconRowRTL: {
+    flexDirection: 'row-reverse',
   },
   iconCard: {
-    width: (SCREEN_WIDTH - 56) / 4,
+    flex: 1,
     aspectRatio: 0.85,
     borderRadius: 16,
     overflow: 'hidden',
@@ -422,13 +828,15 @@ const styles = StyleSheet.create({
   metricsContainer: {
     marginTop: 32,
   },
-  metricsGrid: {
+  metricsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
   },
+  metricsRowRTL: {
+    flexDirection: 'row-reverse',
+  },
   metricCard: {
-    width: (SCREEN_WIDTH - 52) / 3,
+    flex: 1,
     aspectRatio: 1,
     borderRadius: 16,
     overflow: 'hidden',
@@ -481,6 +889,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 12,
   },
+  quickStatsRowRTL: {
+    flexDirection: 'row-reverse',
+  },
   quickStatCard: {
     flex: 1,
     borderRadius: 16,
@@ -500,5 +911,231 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
+  },
+  footer: {
+    marginTop: 40,
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  footerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.5)',
+  },
+  footerVersion: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.3)',
+    marginTop: 4,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+  },
+  partnersModal: {
+    width: SCREEN_WIDTH - 40,
+    maxHeight: SCREEN_HEIGHT * 0.6,
+    backgroundColor: 'rgba(30, 30, 63, 0.95)',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  partnersModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  partnersModalHeaderRTL: {
+    flexDirection: 'row-reverse',
+  },
+  partnersModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnersHint: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginBottom: 16,
+  },
+  partnersList: {
+    maxHeight: 300,
+  },
+  noPartnersText: {
+    textAlign: 'center',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    paddingVertical: 20,
+  },
+  partnerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  partnerItemOwner: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  partnerItemDragging: {
+    opacity: 0.5,
+    transform: [{ scale: 1.05 }],
+  },
+  partnerAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnerInfo: {
+    flex: 1,
+  },
+  partnerEmail: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  partnerRole: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 2,
+  },
+  partnerDeleteBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPartnerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3B82F6',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 16,
+    gap: 8,
+  },
+  addPartnerBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  // Add Partner Modal
+  addPartnerModal: {
+    width: SCREEN_WIDTH - 48,
+    backgroundColor: 'rgba(30, 30, 63, 0.98)',
+    borderRadius: 24,
+    padding: 24,
+    marginTop: SCREEN_HEIGHT * 0.25,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  addPartnerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+  },
+  addPartnerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  emailInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  emailInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
+    marginTop: 10,
+  },
+  confirmAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#10B981',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginTop: 20,
+    gap: 8,
+  },
+  confirmAddBtnDisabled: {
+    opacity: 0.6,
+  },
+  confirmAddBtnText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  successContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  successCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    borderWidth: 3,
+    borderColor: '#10B981',
+  },
+  successText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  trashZone: {
+    position: 'absolute',
+    top: 80,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingHorizontal: 40,
+    paddingVertical: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+    borderStyle: 'dashed',
+  },
+  trashZoneText: {
+    color: '#EF4444',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 8,
   },
 });
