@@ -238,10 +238,7 @@ export default function OwnerDashboard() {
     setPartnerError('');
 
     try {
-      await adminApi.create({
-        email: partnerEmail.trim().toLowerCase(),
-        role: 'partner',
-      });
+      await adminApi.create(partnerEmail.trim().toLowerCase());
       
       setAddSuccess(true);
       haptic.success();
