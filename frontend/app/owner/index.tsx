@@ -1068,6 +1068,24 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     transform: [{ scale: 1.05 }],
   },
+  partnerItemPending: {
+    backgroundColor: 'rgba(107, 114, 128, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(107, 114, 128, 0.3)',
+    borderStyle: 'dashed',
+  },
+  pendingSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    marginBottom: 10,
+    gap: 8,
+  },
+  pendingSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#F59E0B',
+  },
   partnerAvatar: {
     width: 40,
     height: 40,
