@@ -57,6 +57,13 @@ export default function ProductsAdmin() {
   const [quantityInputs, setQuantityInputs] = useState<{ [key: string]: string }>({});
   const [updatingQuantityId, setUpdatingQuantityId] = useState<string | null>(null);
 
+  // Edit mode state
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
   useEffect(() => {
     fetchData();
   }, []);
