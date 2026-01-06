@@ -3,7 +3,8 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform, View, StyleSheet, TouchableOpacity, Text, Pressable, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useAppStore, useCanAccessAdminPanel } from '../../src/store/appStore';
@@ -16,6 +17,8 @@ export default function TabLayout() {
   const { colors } = useTheme();
   const { t, isRTL, language } = useTranslation();
   const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const cartItems = useAppStore((state) => state.cartItems);
   const user = useAppStore((state) => state.user);
   const partners = useAppStore((state) => state.partners);
@@ -37,6 +40,15 @@ export default function TabLayout() {
     (a: any) => a.email?.toLowerCase() === user?.email?.toLowerCase()
   ) || userRole === 'admin';
   const canAccessOwner = isOwner || isPartner;
+
+  // Helper to check active tab
+  const isTabActive = (route: string) => {
+    if (route === '/') return pathname === '/' || pathname === '/index' || pathname === '/(tabs)' || pathname === '/(tabs)/index';
+    if (route === '/categories') return pathname.includes('categories');
+    if (route === '/cart') return pathname.includes('cart');
+    if (route === '/profile') return pathname.includes('profile');
+    return false;
+  };
 
   // Custom center button for Owner/Admin Access
   const CenterAccessButton = () => {
