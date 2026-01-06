@@ -2406,14 +2406,19 @@ async def update_bundle_offer(offer_id: str, data: BundleOfferCreate, request: R
 
 @api_router.delete("/bundle-offers/{offer_id}")
 async def delete_bundle_offer(offer_id: str, request: Request):
+    logger.info(f"DELETE /bundle-offers/{offer_id} - Starting deletion request")
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
+    logger.info(f"DELETE /bundle-offers/{offer_id} - User: {user.get('email') if user else 'None'}, Role: {role}")
+    
     if role not in ["owner", "partner", "admin"]:
-        raise HTTPException(status_code=403, detail="Access denied")
+        logger.warning(f"DELETE /bundle-offers/{offer_id} - Access denied for role: {role}")
+        raise HTTPException(status_code=403, detail=f"Access denied. Role '{role}' is not authorized.")
     
     # Check if bundle offer exists
     offer = await db.bundle_offers.find_one({"_id": offer_id})
     if not offer:
+        logger.warning(f"DELETE /bundle-offers/{offer_id} - Bundle offer not found")
         raise HTTPException(status_code=404, detail="Bundle offer not found")
     
     # Cascading deletion: Remove any cart items that reference this bundle
@@ -2424,10 +2429,11 @@ async def delete_bundle_offer(offer_id: str, request: Request):
     )
     
     # Delete the bundle offer permanently
-    await db.bundle_offers.delete_one({"_id": offer_id})
+    result = await db.bundle_offers.delete_one({"_id": offer_id})
+    logger.info(f"DELETE /bundle-offers/{offer_id} - Deleted count: {result.deleted_count}")
     
     await manager.broadcast({"type": "sync", "tables": ["bundle_offers", "carts"]})
-    return {"message": "Bundle offer deleted permanently"}
+    return {"message": "Bundle offer deleted permanently", "deleted_id": offer_id}
 
 # ==================== Marketing Home Slider ====================
 
