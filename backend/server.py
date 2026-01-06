@@ -2319,12 +2319,21 @@ async def reorder_promotion(promotion_id: str, data: dict, request: Request):
 
 @api_router.delete("/promotions/{promotion_id}")
 async def delete_promotion(promotion_id: str, request: Request):
-    await db.promotions.update_one(
-        {"_id": promotion_id},
-        {"$set": {"deleted_at": datetime.now(timezone.utc)}}
-    )
+    user = await get_current_user(request)
+    role = await get_user_role(user) if user else "guest"
+    if role not in ["owner", "partner", "admin"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Permanent deletion with cascading
+    promotion = await db.promotions.find_one({"_id": promotion_id})
+    if not promotion:
+        raise HTTPException(status_code=404, detail="Promotion not found")
+    
+    # Delete the promotion permanently
+    await db.promotions.delete_one({"_id": promotion_id})
+    
     await manager.broadcast({"type": "sync", "tables": ["promotions"]})
-    return {"message": "Deleted"}
+    return {"message": "Promotion deleted permanently"}
 
 # ==================== Bundle Offer Routes ====================
 
