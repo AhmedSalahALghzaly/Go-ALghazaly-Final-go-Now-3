@@ -326,10 +326,16 @@ export default function MarketingSuiteScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await promotionApi.delete(id);
+              const response = await promotionApi.delete(id);
+              showToast(language === 'ar' ? 'تم حذف العرض بنجاح' : 'Promotion deleted successfully', 'success');
               fetchData();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error deleting promotion:', error);
+              const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error';
+              Alert.alert(
+                language === 'ar' ? 'خطأ في الحذف' : 'Delete Error',
+                `${language === 'ar' ? 'فشل في حذف العرض: ' : 'Failed to delete promotion: '}${errorMessage}`
+              );
             }
           },
         },
@@ -349,10 +355,16 @@ export default function MarketingSuiteScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await bundleOfferApi.delete(id);
+              const response = await bundleOfferApi.delete(id);
+              showToast(language === 'ar' ? 'تم حذف الحزمة بنجاح' : 'Bundle deleted successfully', 'success');
               fetchData();
-            } catch (error) {
+            } catch (error: any) {
               console.error('Error deleting bundle:', error);
+              const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error';
+              Alert.alert(
+                language === 'ar' ? 'خطأ في الحذف' : 'Delete Error',
+                `${language === 'ar' ? 'فشل في حذف الحزمة: ' : 'Failed to delete bundle: '}${errorMessage}`
+              );
             }
           },
         },
