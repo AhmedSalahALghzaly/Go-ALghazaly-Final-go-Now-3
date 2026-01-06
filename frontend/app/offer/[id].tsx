@@ -18,14 +18,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { useAppStore } from '../../src/store/appStore';
-import { cartApi, productsApi } from '../../src/services/api';
-import { offers } from '../../src/data/staticOffers';
-import { DynamicOfferSlider } from '../../src/components/DynamicOfferSlider';
+import { cartApi, bundleOfferApi, carModelApi } from '../../src/services/api';
 import { Header } from '../../src/components/Header';
 
 const { width } = Dimensions.get('window');
 
-// Placeholder product images
+// Placeholder product images when product has no image
 const PRODUCT_IMAGES = [
   'https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?w=400',
   'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400',
@@ -33,6 +31,32 @@ const PRODUCT_IMAGES = [
   'https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400',
   'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400',
 ];
+
+// Color palettes for offers
+const COLOR_PALETTES = [
+  { accent: '#667EEA', icon: '#FF6B35' },
+  { accent: '#11998E', icon: '#FFD93D' },
+  { accent: '#FF6B6B', icon: '#4ECDC4' },
+  { accent: '#3B82F6', icon: '#F59E0B' },
+  { accent: '#EC4899', icon: '#10B981' },
+];
+
+interface BundleOffer {
+  id: string;
+  name: string;
+  name_ar?: string;
+  description?: string;
+  description_ar?: string;
+  discount_percentage: number;
+  target_car_model_id?: string;
+  target_car_model?: any;
+  product_ids: string[];
+  products?: any[];
+  image?: string;
+  is_active: boolean;
+  original_total?: number;
+  discounted_total?: number;
+}
 
 export default function OfferDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -42,14 +66,15 @@ export default function OfferDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { user, addToLocalCart } = useAppStore();
 
-  // Find offer from imported offers
-  const offerIndex = offers.findIndex(o => o.id === id);
-  const [currentOfferIndex, setCurrentOfferIndex] = useState(offerIndex >= 0 ? offerIndex : 0);
-  const offer = offers[currentOfferIndex];
-  
-  // Product data from API
-  const [products, setProducts] = useState<any[]>([]);
+  // Bundle offer data from API
+  const [offer, setOffer] = useState<BundleOffer | null>(null);
+  const [carModel, setCarModel] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Color palette for styling
+  const colorIndex = id ? String(id).charCodeAt(0) % COLOR_PALETTES.length : 0;
+  const palette = COLOR_PALETTES[colorIndex];
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -62,37 +87,49 @@ export default function OfferDetailsScreen() {
   const [addingToCart, setAddingToCart] = useState(false);
   const [addedProducts, setAddedProducts] = useState<Set<string>>(new Set());
 
-  // Fetch specific products for this offer
+  // Fetch bundle offer from API
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchOffer = async () => {
+      if (!id) {
+        setError('No offer ID provided');
+        setLoading(false);
+        return;
+      }
+      
       setLoading(true);
+      setError(null);
+      
       try {
-        // Get the specific product IDs for this offer
-        const offerProductIds = offer.products || [];
+        const response = await bundleOfferApi.getById(id as string);
+        const offerData = response.data;
         
-        // Fetch each product by ID
-        const productPromises = offerProductIds.map(async (productId: string) => {
+        if (!offerData) {
+          setError('Offer not found');
+          setLoading(false);
+          return;
+        }
+        
+        setOffer(offerData);
+        
+        // Fetch car model if available
+        if (offerData.target_car_model_id) {
           try {
-            const res = await productsApi.getById(productId);
-            return res.data;
-          } catch (error) {
-            console.error(`Error fetching product ${productId}:`, error);
-            return null;
+            const carModelRes = await carModelApi.getById(offerData.target_car_model_id);
+            setCarModel(carModelRes.data);
+          } catch (carErr) {
+            console.error('Error fetching car model:', carErr);
           }
-        });
-        
-        const fetchedProducts = await Promise.all(productPromises);
-        // Filter out any null results from failed fetches
-        const validProducts = fetchedProducts.filter(p => p !== null);
-        setProducts(validProducts);
-      } catch (error) {
-        console.error('Error fetching products:', error);
+        }
+      } catch (err) {
+        console.error('Error fetching bundle offer:', err);
+        setError('Failed to load offer details');
       } finally {
         setLoading(false);
       }
     };
-    fetchProducts();
-  }, [currentOfferIndex, offer.products]);
+    
+    fetchOffer();
+  }, [id]);
 
   useEffect(() => {
     // Entry animations
@@ -157,37 +194,27 @@ export default function OfferDetailsScreen() {
     ).start();
   }, []);
 
-  // Calculate discount based on total
-  const calculateDiscount = (total: number) => {
-    if (total > 1000) return 15;
-    if (total > 500) return 13;
-    if (total > 100) return 10;
-    return 0;
-  };
-
+  // Get products from offer
+  const products = offer?.products || [];
+  
   // Calculate totals from actual products
-  const originalTotal = products.reduce((sum, p) => sum + (p.price || 0), 0);
-  const discount = calculateDiscount(originalTotal);
+  const originalTotal = offer?.original_total || products.reduce((sum, p) => sum + (p.price || 0), 0);
+  const discount = offer?.discount_percentage || 0;
   const discountAmount = (originalTotal * discount) / 100;
-  const finalTotal = originalTotal - discountAmount;
+  const finalTotal = offer?.discounted_total || (originalTotal - discountAmount);
 
   const getName = (item: any) => {
     return language === 'ar' && item.name_ar ? item.name_ar : item.name;
   };
 
-  const handleOfferChange = (index: number) => {
-    setCurrentOfferIndex(index);
-    // Reset animations
-    fadeAnim.setValue(0);
-    slideAnim.setValue(30);
-    scaleAnim.setValue(0.95);
-    setAddedProducts(new Set());
-    
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, tension: 60, friction: 8, useNativeDriver: true }),
-    ]).start();
+  const getOfferName = () => {
+    if (!offer) return '';
+    return language === 'ar' && offer.name_ar ? offer.name_ar : offer.name;
+  };
+
+  const getOfferDescription = () => {
+    if (!offer) return '';
+    return language === 'ar' && offer.description_ar ? offer.description_ar : offer.description;
   };
 
   const handleAddToCart = async (product: any) => {
@@ -204,7 +231,10 @@ export default function OfferDetailsScreen() {
 
     setAddingToCart(true);
     try {
-      await cartApi.addItem(product.id, 1);
+      await cartApi.add(product.id, 1, {
+        bundle_offer_id: offer?.id,
+        bundle_discount_percentage: discount,
+      });
       addToLocalCart({ product_id: product.id, quantity: 1, product });
       setAddedProducts(prev => new Set(prev).add(product.id));
     } catch (error) {
@@ -222,8 +252,13 @@ export default function OfferDetailsScreen() {
 
     setAddingToCart(true);
     try {
+      const bundleGroupId = `bundle_${offer?.id}_${Date.now()}`;
       for (const product of products) {
-        await cartApi.addItem(product.id, 1);
+        await cartApi.add(product.id, 1, {
+          bundle_group_id: bundleGroupId,
+          bundle_offer_id: offer?.id,
+          bundle_discount_percentage: discount,
+        });
         addToLocalCart({ product_id: product.id, quantity: 1, product });
       }
       setAddedProducts(new Set(products.map(p => p.id)));
@@ -239,70 +274,120 @@ export default function OfferDetailsScreen() {
     outputRange: [0.3, 0.8],
   });
 
-  // RGB color animation for total price - cycles through rainbow colors
+  // RGB color animation for total price
   const rgbColor = rgbAnim.interpolate({
     inputRange: [0, 0.14, 0.28, 0.42, 0.57, 0.71, 0.85, 1],
     outputRange: [
-      '#FF0000', // Red
-      '#FF7F00', // Orange
-      '#FFFF00', // Yellow
-      '#00FF00', // Green
-      '#00FFFF', // Cyan
-      '#0000FF', // Blue
-      '#8B00FF', // Violet
-      '#FF0000', // Back to Red
+      '#FF0000', '#FF7F00', '#FFFF00', '#00FF00',
+      '#00FFFF', '#0000FF', '#8B00FF', '#FF0000',
     ],
   });
 
   // Get a placeholder image for each product
-  const getProductImage = (index: number) => {
+  const getProductImage = (product: any, index: number) => {
+    if (product.image_url) return product.image_url;
+    if (product.images && product.images.length > 0) return product.images[0];
     return PRODUCT_IMAGES[index % PRODUCT_IMAGES.length];
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header showBack={true} title={language === 'ar' ? 'تفاصيل العرض' : 'Offer Details'} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            {language === 'ar' ? 'جاري التحميل...' : 'Loading...'}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Error state
+  if (error || !offer) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Header showBack={true} title={language === 'ar' ? 'تفاصيل العرض' : 'Offer Details'} />
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={colors.error} />
+          <Text style={[styles.errorText, { color: colors.text }]}>
+            {error || (language === 'ar' ? 'العرض غير موجود' : 'Offer not found')}
+          </Text>
+          <TouchableOpacity
+            style={[styles.retryButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.retryButtonText}>
+              {language === 'ar' ? 'العودة' : 'Go Back'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <Header showBack={true} title={language === 'ar' ? 'تفاصيل العرض' : 'Offer Details'} />
 
-      {/* Offer Slider at Top */}
-      <View style={styles.sliderContainer}>
-        <DynamicOfferSlider 
-          compact={true} 
-          showArrows={true}
-          hideIcon={true}
-          onOfferChange={handleOfferChange}
-          initialIndex={currentOfferIndex}
-        />
-      </View>
+      {/* Offer Image Header */}
+      {offer.image && (
+        <View style={styles.offerImageContainer}>
+          <Image source={{ uri: offer.image }} style={styles.offerImage} resizeMode="cover" />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.imageGradientOverlay}
+          />
+        </View>
+      )}
 
       <ScrollView 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Car Model Badge - Modern Style */}
-        <Animated.View style={[styles.carBadgeSection, { opacity: fadeAnim }]}>
-          <TouchableOpacity
-            style={[styles.carModelBadge, { backgroundColor: isDark ? '#2a2a3e' : '#FFF' }]}
-            onPress={() => router.push(`/car/${offer.car_model_id}`)}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.carIconContainer, { backgroundColor: offer.accentColor + '20' }]}>
-              <MaterialCommunityIcons name="car-sports" size={22} color={offer.accentColor} />
-            </View>
-            <View style={styles.carTextContainer}>
-              <Text style={[styles.carLabel, { color: colors.textSecondary }]}>
-                {language === 'ar' ? 'متوافق مع' : 'Compatible with'}
-              </Text>
-              <Text style={[styles.carModelText, { color: colors.text }]}>
-                {language === 'ar' ? offer.car_ar : offer.car}
-              </Text>
-            </View>
-            <View style={[styles.carArrowContainer, { backgroundColor: offer.accentColor }]}>
-              <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={18} color="#FFF" />
-            </View>
-          </TouchableOpacity>
+        {/* Offer Title Section */}
+        <Animated.View style={[styles.titleSection, { opacity: fadeAnim }]}>
+          <Text style={[styles.offerTitle, { color: colors.text }]}>
+            {getOfferName()}
+          </Text>
+          {getOfferDescription() && (
+            <Text style={[styles.offerDescription, { color: colors.textSecondary }]}>
+              {getOfferDescription()}
+            </Text>
+          )}
         </Animated.View>
+
+        {/* Car Model Badge - Modern Style */}
+        {(carModel || offer.target_car_model) && (
+          <Animated.View style={[styles.carBadgeSection, { opacity: fadeAnim }]}>
+            <TouchableOpacity
+              style={[styles.carModelBadge, { backgroundColor: isDark ? '#2a2a3e' : '#FFF' }]}
+              onPress={() => router.push(`/car/${carModel?.id || offer.target_car_model?.id}`)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.carIconContainer, { backgroundColor: palette.accent + '20' }]}>
+                <MaterialCommunityIcons name="car-sports" size={22} color={palette.accent} />
+              </View>
+              <View style={styles.carTextContainer}>
+                <Text style={[styles.carLabel, { color: colors.textSecondary }]}>
+                  {language === 'ar' ? 'متوافق مع' : 'Compatible with'}
+                </Text>
+                <Text style={[styles.carModelText, { color: colors.text }]}>
+                  {language === 'ar' 
+                    ? (carModel?.name_ar || offer.target_car_model?.name_ar || carModel?.name || offer.target_car_model?.name)
+                    : (carModel?.name || offer.target_car_model?.name)}
+                </Text>
+              </View>
+              <View style={[styles.carArrowContainer, { backgroundColor: palette.accent }]}>
+                <Ionicons name={isRTL ? 'chevron-back' : 'chevron-forward'} size={18} color="#FFF" />
+              </View>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Discount Banner - Premium Design */}
         <Animated.View 
@@ -312,12 +397,11 @@ export default function OfferDetailsScreen() {
           ]}
         >
           <LinearGradient
-            colors={[offer.accentColor, offer.iconBg]}
+            colors={[palette.accent, palette.icon]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.discountGradient}
           >
-            {/* Decorative Elements */}
             <View style={styles.discountDecoLeft} />
             <View style={styles.discountDecoRight} />
             
@@ -331,19 +415,10 @@ export default function OfferDetailsScreen() {
                 </View>
                 <Text style={styles.discountSubtitle}>
                   {language === 'ar' 
-                    ? `وفر حتى ${discount}% على مشترياتك`
-                    : `Save up to ${discount}% on your purchase`
+                    ? `وفر ${discount}% على مشترياتك`
+                    : `Save ${discount}% on your purchase`
                   }
                 </Text>
-                <View style={styles.discountCondition}>
-                  <Ionicons name="information-circle" size={14} color="rgba(26,26,46,0.7)" />
-                  <Text style={styles.conditionText}>
-                    {language === 'ar' 
-                      ? `للطلبات أكثر من ${discount === 10 ? '100' : discount === 13 ? '500' : '1000'} ج.م`
-                      : `Orders over ${discount === 10 ? '100' : discount === 13 ? '500' : '1000'} EGP`
-                    }
-                  </Text>
-                </View>
               </View>
               
               <Animated.View style={[styles.discountCircle, { transform: [{ scale: pulseAnim }] }]}>
@@ -354,29 +429,29 @@ export default function OfferDetailsScreen() {
           </LinearGradient>
         </Animated.View>
 
-        {/* Products Section - Modern Cards */}
+        {/* Products Section */}
         <View style={styles.productsSection}>
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleRow}>
-              <View style={[styles.sectionIcon, { backgroundColor: offer.accentColor + '20' }]}>
-                <Ionicons name="cube" size={18} color={offer.accentColor} />
+              <View style={[styles.sectionIcon, { backgroundColor: palette.accent + '20' }]}>
+                <Ionicons name="cube" size={18} color={palette.accent} />
               </View>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
                 {language === 'ar' ? 'منتجات العرض' : 'Offer Products'}
               </Text>
             </View>
-            <View style={[styles.productCount, { backgroundColor: offer.accentColor + '15' }]}>
-              <Text style={[styles.productCountText, { color: offer.accentColor }]}>
+            <View style={[styles.productCount, { backgroundColor: palette.accent + '15' }]}>
+              <Text style={[styles.productCountText, { color: palette.accent }]}>
                 {products.length} {language === 'ar' ? 'منتجات' : 'items'}
               </Text>
             </View>
           </View>
           
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={offer.accentColor} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                {language === 'ar' ? 'جاري التحميل...' : 'Loading...'}
+          {products.length === 0 ? (
+            <View style={styles.emptyProductsContainer}>
+              <Ionicons name="cube-outline" size={48} color={colors.textSecondary} />
+              <Text style={[styles.emptyProductsText, { color: colors.textSecondary }]}>
+                {language === 'ar' ? 'لا توجد منتجات في هذا العرض' : 'No products in this offer'}
               </Text>
             </View>
           ) : (
@@ -392,25 +467,23 @@ export default function OfferDetailsScreen() {
                   }
                 ]}
               >
-                {/* Product Number Badge */}
-                <View style={[styles.productNumberBadge, { backgroundColor: offer.accentColor }]}>
+                <View style={[styles.productNumberBadge, { backgroundColor: palette.accent }]}>
                   <Text style={styles.productNumber}>{index + 1}</Text>
                 </View>
 
-                {/* Product Image */}
                 <TouchableOpacity 
                   style={styles.productImageContainer}
                   onPress={() => router.push(`/product/${product.id}`)}
                   activeOpacity={0.8}
                 >
                   <Image 
-                    source={{ uri: getProductImage(index) }}
+                    source={{ uri: getProductImage(product, index) }}
                     style={styles.productImage}
                     resizeMode="cover"
                   />
                   <LinearGradient
                     colors={['transparent', 'rgba(0,0,0,0.3)']}
-                    style={styles.imageGradient}
+                    style={styles.productImageGradient}
                   />
                   <View style={styles.viewProductBadge}>
                     <Ionicons name="eye" size={12} color="#FFF" />
@@ -420,7 +493,6 @@ export default function OfferDetailsScreen() {
                   </View>
                 </TouchableOpacity>
                 
-                {/* Product Info */}
                 <View style={styles.productInfo}>
                   <TouchableOpacity onPress={() => router.push(`/product/${product.id}`)}>
                     <Text style={[styles.productName, { color: colors.text }]} numberOfLines={2}>
@@ -438,22 +510,19 @@ export default function OfferDetailsScreen() {
                   </View>
                   
                   <View style={styles.priceContainer}>
-                    <Text style={[styles.productPrice, { color: offer.accentColor }]}>
+                    <Text style={[styles.productPrice, { color: palette.accent }]}>
                       {product.price?.toFixed(2)}
                     </Text>
-                    <Text style={[styles.priceCurrency, { color: offer.accentColor }]}>
+                    <Text style={[styles.priceCurrency, { color: palette.accent }]}>
                       ج.م
                     </Text>
                   </View>
                 </View>
 
-                {/* Add to Cart Button */}
                 <TouchableOpacity
                   style={[
                     styles.addButton,
-                    { 
-                      backgroundColor: addedProducts.has(product.id) ? '#4CAF50' : offer.accentColor,
-                    }
+                    { backgroundColor: addedProducts.has(product.id) ? '#4CAF50' : palette.accent }
                   ]}
                   onPress={() => handleAddToCart(product)}
                   disabled={addingToCart || addedProducts.has(product.id)}
@@ -472,145 +541,94 @@ export default function OfferDetailsScreen() {
           )}
         </View>
 
-        {/* Price Summary - Premium Card */}
-        <Animated.View 
-          style={[
-            styles.summarySection,
-            { 
-              backgroundColor: isDark ? '#1e1e2e' : '#FFFFFF',
-              transform: [{ scale: scaleAnim }],
-            }
-          ]}
-        >
-        </Animated.View>
-
-        {/* Add All to Cart Button - Professional Design */}
-        <TouchableOpacity
-          style={styles.addAllButton}
-          onPress={handleAddAllToCart}
-          disabled={addingToCart || products.length === 0}
-          activeOpacity={0.9}
-        >
-          <LinearGradient
-            colors={[offer.accentColor, offer.iconBg]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.addAllGradient}
+        {/* Add All to Cart Button */}
+        {products.length > 0 && (
+          <TouchableOpacity
+            style={styles.addAllButton}
+            onPress={handleAddAllToCart}
+            disabled={addingToCart}
+            activeOpacity={0.9}
           >
-            {addingToCart ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator color="#FFF" size="small" />
-              </View>
-            ) : (
-              <>
-                {/* Price Info Section at Top */}
-                <View style={styles.priceInfoSection}>
-                  {/* Original Price Row */}
-                  <View style={styles.priceInfoRow}>
-                    <View style={styles.priceInfoLeft}>
-                      <Ionicons name="pricetag-outline" size={14} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.priceInfoLabel}>
-                        {language === 'ar' ? 'السعر الأصلي' : 'Original Price'}
+            <LinearGradient
+              colors={[palette.accent, palette.icon]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.addAllGradient}
+            >
+              {addingToCart ? (
+                <View style={styles.addAllLoadingContainer}>
+                  <ActivityIndicator color="#FFF" size="small" />
+                </View>
+              ) : (
+                <>
+                  <View style={styles.priceInfoSection}>
+                    <View style={styles.priceInfoRow}>
+                      <View style={styles.priceInfoLeft}>
+                        <Ionicons name="pricetag-outline" size={14} color="rgba(255,255,255,0.7)" />
+                        <Text style={styles.priceInfoLabel}>
+                          {language === 'ar' ? 'السعر الأصلي' : 'Original Price'}
+                        </Text>
+                      </View>
+                      <Text style={styles.originalPriceValue}>
+                        {originalTotal.toFixed(2)} ج.م
                       </Text>
                     </View>
-                    <Text style={styles.originalPriceValue}>
-                      {originalTotal.toFixed(2)} ج.م
-                    </Text>
-                  </View>
 
-                  {/* Discount Row */}
-                  <View style={styles.priceInfoRow}>
-                    <View style={styles.priceInfoLeft}>
-                      <View style={styles.animatedIconContainer}>
-                        {/* Layered icons for RGB animation effect */}
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0, 0.14, 0.28], outputRange: [1, 0, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#FF0000" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.07, 0.21, 0.35], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#FF7F00" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.21, 0.35, 0.49], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#FFFF00" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.35, 0.49, 0.63], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#00FF00" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.49, 0.63, 0.77], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#00FFFF" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.63, 0.77, 0.91], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#0000FF" />
-                        </Animated.View>
-                        <Animated.View style={[styles.animatedIcon, { opacity: rgbAnim.interpolate({ inputRange: [0.77, 0.91, 1], outputRange: [0, 1, 0], extrapolate: 'clamp' }) }]}>
-                          <Ionicons name="gift" size={14} color="#8B00FF" />
-                        </Animated.View>
+                    <View style={styles.priceInfoRow}>
+                      <View style={styles.priceInfoLeft}>
+                        <Ionicons name="gift" size={14} color="#FFD93D" />
+                        <Animated.Text style={[styles.priceInfoLabel, { color: rgbColor }]}>
+                          {language === 'ar' ? `خصم ${discount}%` : `${discount}% Discount`}
+                        </Animated.Text>
                       </View>
-                      <Animated.Text style={[styles.priceInfoLabel, { color: rgbColor }]}>
-                        {language === 'ar' ? `خصم ${discount}%` : `${discount}% Discount`}
+                      <Animated.Text style={[styles.discountValue, { color: rgbColor }]}>
+                        -{discountAmount.toFixed(2)} ج.م
                       </Animated.Text>
                     </View>
-                    <Animated.Text style={[styles.discountValue, { color: rgbColor }]}>
-                      -{discountAmount.toFixed(2)} ج.م
-                    </Animated.Text>
                   </View>
-                </View>
 
-                {/* Divider */}
-                <View style={styles.barDivider} />
+                  <View style={styles.barDivider} />
 
-                {/* Main Action Section */}
-                <View style={styles.mainActionSection}>
-                  {/* Animated Cart Icon Section */}
-                  <Animated.View 
-                    style={[
-                      styles.addAllIconContainer,
-                      { transform: [{ scale: pulseAnim }] }
-                    ]}
-                  >
-                    <View style={styles.cartIconCircle}>
-                      <Ionicons name="cart" size={24} color="#FFF" />
-                    </View>
-                    {/* Glow ring effect */}
+                  <View style={styles.mainActionSection}>
                     <Animated.View 
-                      style={[
-                        styles.cartIconRing,
-                        { 
-                          borderColor: '#FFF',
-                          opacity: glowOpacity,
-                        }
-                      ]} 
-                    />
-                  </Animated.View>
+                      style={[styles.addAllIconContainer, { transform: [{ scale: pulseAnim }] }]}
+                    >
+                      <View style={styles.cartIconCircle}>
+                        <Ionicons name="cart" size={24} color="#FFF" />
+                      </View>
+                      <Animated.View 
+                        style={[styles.cartIconRing, { borderColor: '#FFF', opacity: glowOpacity }]} 
+                      />
+                    </Animated.View>
 
-                  {/* Text Section */}
-                  <View style={styles.addAllCenterContent}>
-                    <Text style={styles.addAllText}>
-                      {language === 'ar' ? 'إضافة الكل للسلة' : 'Add All to Cart'}
-                    </Text>
-                    <Text style={styles.addAllSubtext}>
-                      {products.length} {language === 'ar' ? 'منتجات' : 'products'}
-                    </Text>
-                  </View>
+                    <View style={styles.addAllCenterContent}>
+                      <Text style={styles.addAllText}>
+                        {language === 'ar' ? 'إضافة الكل للسلة' : 'Add All to Cart'}
+                      </Text>
+                      <Text style={styles.addAllSubtext}>
+                        {products.length} {language === 'ar' ? 'منتجات' : 'products'}
+                      </Text>
+                    </View>
 
-                  {/* Total Price Section */}
-                  <View style={styles.addAllPriceSection}>
-                    <Text style={styles.addAllTotalLabel}>
-                      {language === 'ar' ? 'الإجمالي' : 'Total'}
-                    </Text>
-                    <View style={styles.addAllPriceRow}>
-                      <Animated.Text style={[styles.addAllPrice, { color: rgbColor }]}>
-                        {finalTotal.toFixed(2)}
-                      </Animated.Text>
-                      <Animated.Text style={[styles.addAllCurrency, { color: rgbColor }]}>
-                        ج.م
-                      </Animated.Text>
+                    <View style={styles.addAllPriceSection}>
+                      <Text style={styles.addAllTotalLabel}>
+                        {language === 'ar' ? 'الإجمالي' : 'Total'}
+                      </Text>
+                      <View style={styles.addAllPriceRow}>
+                        <Animated.Text style={[styles.addAllPrice, { color: rgbColor }]}>
+                          {finalTotal.toFixed(2)}
+                        </Animated.Text>
+                        <Animated.Text style={[styles.addAllCurrency, { color: rgbColor }]}>
+                          ج.م
+                        </Animated.Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -650,8 +668,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  sliderContainer: {
-    marginTop: 4,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    marginTop: 16,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  offerImageContainer: {
+    height: 180,
+    position: 'relative',
+  },
+  offerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imageGradientOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 60,
   },
   scrollView: {
     flex: 1,
@@ -660,8 +720,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 12,
   },
-  
-  // Car Model Badge - Modern
+  titleSection: {
+    marginBottom: 16,
+  },
+  offerTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  offerDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
   carBadgeSection: {
     marginBottom: 16,
   },
@@ -672,16 +742,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 16,
     ...Platform.select({
-      web: {
-        boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
-      },
-      default: {
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 8,
-      },
+      web: { boxShadow: '0 4px 15px rgba(0,0,0,0.08)' },
+      default: { elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8 },
     }),
   },
   carIconContainer: {
@@ -711,8 +773,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  // Discount Banner - Premium
   discountBanner: {
     marginBottom: 20,
     borderRadius: 20,
@@ -765,18 +825,7 @@ const styles = StyleSheet.create({
     color: '#1a1a2e',
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 10,
     opacity: 0.9,
-  },
-  discountCondition: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  conditionText: {
-    color: 'rgba(26,26,46,0.7)',
-    fontSize: 11,
-    fontWeight: '600',
   },
   discountCircle: {
     width: 70,
@@ -786,16 +835,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
-      web: {
-        boxShadow: '0 8px 25px rgba(0,0,0,0.3)',
-      },
-      default: {
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-      },
+      web: { boxShadow: '0 8px 25px rgba(0,0,0,0.3)' },
+      default: { elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 10 },
     }),
   },
   discountPercentage: {
@@ -809,8 +850,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: -2,
   },
-
-  // Products Section
   productsSection: {
     marginBottom: 20,
   },
@@ -845,16 +884,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  loadingContainer: {
+  emptyProductsContainer: {
     alignItems: 'center',
     paddingVertical: 40,
   },
-  loadingText: {
+  emptyProductsText: {
     marginTop: 12,
     fontSize: 14,
   },
-
-  // Product Card - Modern
   productCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -863,16 +900,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     position: 'relative',
     ...Platform.select({
-      web: {
-        boxShadow: '0 4px 15px rgba(0,0,0,0.06)',
-      },
-      default: {
-        elevation: 3,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.06,
-        shadowRadius: 8,
-      },
+      web: { boxShadow: '0 4px 15px rgba(0,0,0,0.06)' },
+      default: { elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
     }),
   },
   productNumberBadge: {
@@ -902,7 +931,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  imageGradient: {
+  productImageGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
@@ -973,145 +1002,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     ...Platform.select({
-      web: {
-        boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-      },
-      default: {
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
-      },
+      web: { boxShadow: '0 4px 15px rgba(0,0,0,0.2)' },
+      default: { elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.2, shadowRadius: 6 },
     }),
   },
-
-  // Summary Section - Premium
-  summarySection: {
-    padding: 20,
-    borderRadius: 20,
-    marginBottom: 20,
-    ...Platform.select({
-      web: {
-        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
-      },
-      default: {
-        elevation: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-      },
-    }),
-  },
-  summaryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  summaryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  summaryDivider: {
-    height: 1,
-    marginBottom: 16,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  discountRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  discountTag: {
-    padding: 4,
-    borderRadius: 6,
-  },
-  summaryLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  summaryValueStrike: {
-    fontSize: 14,
-    fontWeight: '500',
-    textDecorationLine: 'line-through',
-  },
-  summaryDividerDashed: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    marginVertical: 14,
-  },
-  finalPriceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  finalLabel: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  finalPriceContainer: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  finalValue: {
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  finalCurrency: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 4,
-  },
-  savingsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-  },
-  savingsText: {
-    color: '#4CAF50',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-
-  // Add All Button - Professional Design
   addAllButton: {
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 10,
     ...Platform.select({
-      web: {
-        boxShadow: '0 8px 25px rgba(0,0,0,0.3)',
-      },
-      default: {
-        elevation: 10,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
-      },
+      web: { boxShadow: '0 8px 25px rgba(0,0,0,0.3)' },
+      default: { elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.3, shadowRadius: 12 },
     }),
   },
   addAllGradient: {
@@ -1119,12 +1020,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
   },
-  loadingContainer: {
+  addAllLoadingContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 30,
   },
-  // Price Info Section
   priceInfoSection: {
     marginBottom: 12,
   },
@@ -1138,16 +1038,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  animatedIconContainer: {
-    width: 14,
-    height: 14,
-    position: 'relative',
-  },
-  animatedIcon: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
   },
   priceInfoLabel: {
     fontSize: 13,
@@ -1164,13 +1054,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Divider
   barDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.15)',
     marginBottom: 12,
   },
-  // Main Action Section
   mainActionSection: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1237,8 +1125,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-
-  // Footer
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
