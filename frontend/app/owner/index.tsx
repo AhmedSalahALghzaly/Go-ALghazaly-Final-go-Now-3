@@ -150,7 +150,7 @@ export default function OwnerDashboard() {
   const fetchPartners = useCallback(async () => {
     setLoadingPartners(true);
     try {
-      const response = await adminApi.getAllAdmins();
+      const response = await adminApi.getAll();
       const allAdmins = response.data || [];
       // Filter to get partners (role = 'partner') and owner
       const partnersList = allAdmins.filter((a: any) => a.role === 'partner' || a.role === 'owner');
