@@ -130,12 +130,8 @@ export default function OwnerDashboard() {
   const fetchPartners = useCallback(async () => {
     setLoadingPartners(true);
     try {
-      const response = await adminApi.getAll();
-      const allAdmins = response.data || [];
-      // Filter to get all partners and owner - show immediately when added
-      const partnersList = allAdmins.filter((a: any) => 
-        a.role === 'partner' || a.role === 'owner'
-      );
+      const response = await partnerApi.getAll();
+      const partnersList = response.data || [];
       setPartners(partnersList);
       setPendingPartners([]); // No pending section needed
       
