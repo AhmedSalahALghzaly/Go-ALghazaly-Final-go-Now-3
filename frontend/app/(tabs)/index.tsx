@@ -17,7 +17,6 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Header } from '../../src/components/Header';
 import { CategoryCard } from '../../src/components/CategoryCard';
-import { OfferSlider } from '../../src/components/OfferSlider';
 import { DynamicOfferSlider } from '../../src/components/DynamicOfferSlider';
 import { InteractiveCarSelector } from '../../src/components/InteractiveCarSelector';
 import { AnimatedFavoriteButton, AnimatedCartButton } from '../../src/components/AnimatedIconButton';
