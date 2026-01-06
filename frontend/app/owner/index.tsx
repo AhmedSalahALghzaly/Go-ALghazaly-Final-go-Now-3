@@ -565,49 +565,86 @@ export default function OwnerDashboard() {
             <ScrollView style={styles.partnersList}>
               {loadingPartners ? (
                 <ActivityIndicator size="large" color="#3B82F6" />
-              ) : partners.length === 0 ? (
+              ) : partners.length === 0 && pendingPartners.length === 0 ? (
                 <Text style={styles.noPartnersText}>
                   {language === 'ar' ? 'لا يوجد شركاء' : 'No partners yet'}
                 </Text>
               ) : (
-                partners.map((partner) => (
-                  <TouchableOpacity
-                    key={partner.id}
-                    style={[
-                      styles.partnerItem,
-                      partner.role === 'owner' && styles.partnerItemOwner,
-                      deletingPartner?.id === partner.id && styles.partnerItemDragging,
-                    ]}
-                    onLongPress={() => startDragDelete(partner)}
-                    delayLongPress={500}
-                    activeOpacity={0.8}
-                  >
-                    <View style={[styles.partnerAvatar, { backgroundColor: partner.role === 'owner' ? '#F59E0B' : '#3B82F6' }]}>
-                      <Ionicons 
-                        name={partner.role === 'owner' ? 'star' : 'person'} 
-                        size={20} 
-                        color="#FFF" 
-                      />
-                    </View>
-                    <View style={styles.partnerInfo}>
-                      <Text style={styles.partnerEmail}>{partner.email}</Text>
-                      <Text style={styles.partnerRole}>
-                        {partner.role === 'owner' 
-                          ? (language === 'ar' ? 'المالك' : 'Owner')
-                          : (language === 'ar' ? 'شريك' : 'Partner')
-                        }
-                      </Text>
-                    </View>
-                    {partner.role !== 'owner' && (
-                      <TouchableOpacity
-                        style={styles.partnerDeleteBtn}
-                        onPress={() => handleDeletePartner(partner)}
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                      </TouchableOpacity>
-                    )}
-                  </TouchableOpacity>
-                ))
+                <>
+                  {/* Confirmed Partners */}
+                  {partners.map((partner) => (
+                    <TouchableOpacity
+                      key={partner.id}
+                      style={[
+                        styles.partnerItem,
+                        partner.role === 'owner' && styles.partnerItemOwner,
+                        deletingPartner?.id === partner.id && styles.partnerItemDragging,
+                      ]}
+                      onLongPress={() => startDragDelete(partner)}
+                      delayLongPress={500}
+                      activeOpacity={0.8}
+                    >
+                      <View style={[styles.partnerAvatar, { backgroundColor: partner.role === 'owner' ? '#F59E0B' : '#3B82F6' }]}>
+                        <Ionicons 
+                          name={partner.role === 'owner' ? 'star' : 'person'} 
+                          size={20} 
+                          color="#FFF" 
+                        />
+                      </View>
+                      <View style={styles.partnerInfo}>
+                        <Text style={styles.partnerEmail}>{partner.email}</Text>
+                        <Text style={styles.partnerRole}>
+                          {partner.role === 'owner' 
+                            ? (language === 'ar' ? 'المالك' : 'Owner')
+                            : (language === 'ar' ? 'شريك مؤكد' : 'Confirmed Partner')
+                          }
+                        </Text>
+                      </View>
+                      {partner.role !== 'owner' && (
+                        <TouchableOpacity
+                          style={styles.partnerDeleteBtn}
+                          onPress={() => handleDeletePartner(partner)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+
+                  {/* Pending Partners Section */}
+                  {pendingPartners.length > 0 && (
+                    <>
+                      <View style={styles.pendingSectionHeader}>
+                        <Ionicons name="time-outline" size={16} color="#F59E0B" />
+                        <Text style={styles.pendingSectionTitle}>
+                          {language === 'ar' ? 'في انتظار التأكيد' : 'Pending Confirmation'}
+                        </Text>
+                      </View>
+                      {pendingPartners.map((partner) => (
+                        <View
+                          key={partner.id}
+                          style={[styles.partnerItem, styles.partnerItemPending]}
+                        >
+                          <View style={[styles.partnerAvatar, { backgroundColor: '#6B7280' }]}>
+                            <Ionicons name="hourglass-outline" size={20} color="#FFF" />
+                          </View>
+                          <View style={styles.partnerInfo}>
+                            <Text style={[styles.partnerEmail, { opacity: 0.7 }]}>{partner.email}</Text>
+                            <Text style={[styles.partnerRole, { color: '#F59E0B' }]}>
+                              {language === 'ar' ? 'في انتظار تأكيد البريد' : 'Awaiting email confirmation'}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.partnerDeleteBtn}
+                            onPress={() => handleDeletePartner(partner)}
+                          >
+                            <Ionicons name="close" size={18} color="#EF4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </>
               )}
             </ScrollView>
 
