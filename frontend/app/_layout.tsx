@@ -30,15 +30,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!isAuthenticated) return;
       
       try {
-        const response = await adminApi.getAll();
+        // Use the check-access endpoint which is available to all authenticated users
+        const response = await adminApi.checkAccess();
         if (response.data) {
           setAdmins(response.data);
           console.log('AuthGuard: Fetched admins list for access control');
         }
       } catch (error) {
-        // Admins fetch may fail for non-admin users due to permissions
-        // This is expected behavior - the list will remain empty
-        console.log('AuthGuard: Could not fetch admins list (may be permissions)');
+        // Admins fetch may fail - the list will remain empty
+        console.log('AuthGuard: Could not fetch admins list');
       }
     };
 
