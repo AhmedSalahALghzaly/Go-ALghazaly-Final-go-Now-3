@@ -303,7 +303,7 @@ class BackendTester:
     
     def run_all_tests(self):
         """Run all backend tests"""
-        print("🚀 Starting Backend API Tests for Al-Ghazaly Auto Parts")
+        print("🚀 Starting Backend API Tests for Al-Ghazaly Auto Parts Bug Fixes")
         print("=" * 60)
         
         # Health check first
@@ -311,22 +311,24 @@ class BackendTester:
             print("❌ Backend is not accessible. Stopping tests.")
             return False
         
-        print("\n📋 Testing API Parameter Functionality:")
+        print("\n🔧 Testing Bug Fix #1: Bundle Cart Logic:")
         print("-" * 40)
-        self.test_promotions_list()
         self.test_bundle_offers_list()
+        self.test_cart_add_with_bundle_params()
+        self.test_cart_void_bundle_without_auth()
         
-        print("\n🔒 Testing DELETE Endpoints Authentication:")
+        print("\n🔧 Testing Bug Fix #2: Admin Delete Functionality:")
         print("-" * 40)
         self.test_delete_promotion_without_auth()
         self.test_delete_bundle_offer_without_auth()
         
-        print("\n🛒 Testing Cart Void Bundle Endpoint:")
+        print("\n🔧 Testing Bug Fix #3: Admin Access Control:")
         print("-" * 40)
-        self.test_cart_void_bundle_without_auth()
+        self.test_admin_check_access_without_auth()
         
-        print("\n🎯 Testing Marketing Endpoints:")
+        print("\n📋 Testing Additional API Functionality:")
         print("-" * 40)
+        self.test_promotions_list()
         self.test_marketing_home_slider()
         
         # Summary
