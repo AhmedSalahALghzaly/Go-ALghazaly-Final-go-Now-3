@@ -63,6 +63,8 @@ export default function CategoriesAdmin() {
     setSaving(true);
     setError('');
 
+    console.log('Saving category with image_data:', categoryImage ? 'HAS IMAGE' : 'NO IMAGE');
+
     try {
       await categoriesApi.create({
         name: name.trim(),
