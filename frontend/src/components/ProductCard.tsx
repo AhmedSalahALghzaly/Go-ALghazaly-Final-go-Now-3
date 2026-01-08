@@ -66,6 +66,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
     return language === 'ar' && product.name_ar ? product.name_ar : product.name;
   };
 
+  // Get product brand name based on language
+  const getBrandName = () => {
+    if (language === 'ar' && product.product_brand_name_ar) {
+      return product.product_brand_name_ar;
+    }
+    return product.product_brand_name || '';
+  };
+
+  // Get compatible car model name based on language
+  const getCarModelName = () => {
+    if (language === 'ar' && product.compatible_car_model_ar) {
+      return product.compatible_car_model_ar;
+    }
+    return product.compatible_car_model || '';
+  };
+
+  // Get country of origin based on language
+  const getCountry = () => {
+    if (language === 'ar' && product.manufacturer_country_ar) {
+      return product.manufacturer_country_ar;
+    }
+    return product.manufacturer_country || '';
+  };
+
   // Calculate total price based on quantity
   const totalPrice = product.price * quantity;
 
