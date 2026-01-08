@@ -360,15 +360,20 @@ export default function MarketingSuiteScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('Attempting to delete bundle:', id);
               const response = await bundleOfferApi.delete(id);
+              console.log('Delete bundle response:', response);
               showToast(language === 'ar' ? 'تم حذف الحزمة بنجاح' : 'Bundle deleted successfully', 'success');
               fetchData();
             } catch (error: any) {
               console.error('Error deleting bundle:', error);
+              console.error('Error response:', error?.response?.data);
+              console.error('Error status:', error?.response?.status);
               const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error';
+              const statusCode = error?.response?.status || '';
               Alert.alert(
                 language === 'ar' ? 'خطأ في الحذف' : 'Delete Error',
-                `${language === 'ar' ? 'فشل في حذف الحزمة: ' : 'Failed to delete bundle: '}${errorMessage}`
+                `${language === 'ar' ? 'فشل في حذف الحزمة: ' : 'Failed to delete bundle: '}${errorMessage} (${statusCode})`
               );
             }
           },
