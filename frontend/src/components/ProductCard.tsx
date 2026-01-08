@@ -383,16 +383,15 @@ const styles = StyleSheet.create({
     margin: 6,
   },
   imageContainer: {
-    height: 100,
+    height: 115,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   image: {
     width: '100%',
     height: '100%',
   },
-  // Brand badge overlay on image
+  // Brand badge overlay on image - removed
   brandBadge: {
     position: 'absolute',
     bottom: 6,
@@ -410,19 +409,19 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 8,
+    paddingTop: 6,
   },
   name: {
     fontSize: 12,
     fontWeight: '600',
-    marginBottom: 4,
-    minHeight: 32,
-    lineHeight: 16,
+    marginBottom: 2,
+    minHeight: 30,
+    lineHeight: 15,
   },
   // Product details section
   detailsContainer: {
-    marginBottom: 6,
-    gap: 3,
-    minHeight: 52,
+    marginBottom: 4,
+    gap: 2,
   },
   detailRow: {
     flexDirection: 'row',
@@ -435,7 +434,7 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 10,
     flex: 1,
-    lineHeight: 14,
+    lineHeight: 13,
   },
   brandText: {
     fontWeight: '600',
