@@ -387,19 +387,53 @@ const styles = StyleSheet.create({
     height: 120,
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
   },
   image: {
     width: '100%',
     height: '100%',
+  },
+  // Brand badge overlay on image
+  brandBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  brandBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   content: {
     padding: 10,
   },
   name: {
     fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 8,
-    height: 34,
+    fontWeight: '600',
+    marginBottom: 4,
+    minHeight: 34,
+  },
+  // Product details section
+  detailsContainer: {
+    marginBottom: 6,
+    gap: 2,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  detailRowRTL: {
+    flexDirection: 'row-reverse',
+  },
+  detailText: {
+    fontSize: 9,
+    flex: 1,
   },
   quantityRow: {
     flexDirection: 'row',
