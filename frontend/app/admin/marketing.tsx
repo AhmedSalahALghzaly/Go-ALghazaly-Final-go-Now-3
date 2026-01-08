@@ -326,15 +326,20 @@ export default function MarketingSuiteScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              console.log('Attempting to delete promotion:', id);
               const response = await promotionApi.delete(id);
+              console.log('Delete promotion response:', response);
               showToast(language === 'ar' ? 'تم حذف العرض بنجاح' : 'Promotion deleted successfully', 'success');
               fetchData();
             } catch (error: any) {
               console.error('Error deleting promotion:', error);
+              console.error('Error response:', error?.response?.data);
+              console.error('Error status:', error?.response?.status);
               const errorMessage = error?.response?.data?.detail || error?.message || 'Unknown error';
+              const statusCode = error?.response?.status || '';
               Alert.alert(
                 language === 'ar' ? 'خطأ في الحذف' : 'Delete Error',
-                `${language === 'ar' ? 'فشل في حذف العرض: ' : 'Failed to delete promotion: '}${errorMessage}`
+                `${language === 'ar' ? 'فشل في حذف العرض: ' : 'Failed to delete promotion: '}${errorMessage} (${statusCode})`
               );
             }
           },
