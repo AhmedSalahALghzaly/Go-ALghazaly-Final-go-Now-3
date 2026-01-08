@@ -611,6 +611,12 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  subCategoryImage: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
   },
   subCategoryName: {
     flex: 1,
