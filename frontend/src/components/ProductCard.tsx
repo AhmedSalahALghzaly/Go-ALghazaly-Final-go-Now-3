@@ -17,6 +17,13 @@ interface ProductCardProps {
     price: number;
     image_url?: string;
     product_brand_id?: string;
+    // New fields for enhanced display
+    product_brand_name?: string;
+    product_brand_name_ar?: string;
+    manufacturer_country?: string;
+    sku?: string;
+    compatible_car_model?: string;
+    compatible_car_model_ar?: string;
   };
   onAddToCart?: (quantity: number) => void;
   cardWidth?: number; // Optional prop to override default width
