@@ -1264,7 +1264,40 @@ async def get_products(category_id: Optional[str] = None, product_brand_id: Opti
     
     total = await db.products.count_documents(query)
     products = await db.products.find(query).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    return {"products": [serialize_doc(p) for p in products], "total": total}
+    
+    # Fetch all product brands and car models for enrichment
+    all_product_brands = await db.product_brands.find({"deleted_at": None}).to_list(1000)
+    all_car_models = await db.car_models.find({"deleted_at": None}).to_list(1000)
+    
+    # Create lookup maps
+    brand_map = {b["_id"]: serialize_doc(b) for b in all_product_brands}
+    car_model_map = {m["_id"]: serialize_doc(m) for m in all_car_models}
+    
+    # Enrich products with brand and car model details
+    enriched_products = []
+    for p in products:
+        product_data = serialize_doc(p)
+        
+        # Add product brand details
+        if p.get("product_brand_id") and p["product_brand_id"] in brand_map:
+            brand = brand_map[p["product_brand_id"]]
+            product_data["product_brand_name"] = brand.get("name", "")
+            product_data["product_brand_name_ar"] = brand.get("name_ar", "")
+            product_data["manufacturer_country"] = brand.get("country_of_origin", "")
+            product_data["manufacturer_country_ar"] = brand.get("country_of_origin_ar", "")
+        
+        # Add first compatible car model details
+        if p.get("car_model_ids") and len(p["car_model_ids"]) > 0:
+            first_model_id = p["car_model_ids"][0]
+            if first_model_id in car_model_map:
+                car_model = car_model_map[first_model_id]
+                product_data["compatible_car_model"] = car_model.get("name", "")
+                product_data["compatible_car_model_ar"] = car_model.get("name_ar", "")
+                product_data["compatible_car_models_count"] = len(p["car_model_ids"])
+        
+        enriched_products.append(product_data)
+    
+    return {"products": enriched_products, "total": total}
 
 @api_router.get("/products/search")
 async def search_products(q: str = Query(..., min_length=1), limit: int = 20):
