@@ -232,6 +232,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
+    overflow: 'hidden',
+  },
+  brandLogoLarge: {
+    width: '80%',
+    height: '80%',
   },
   brandName: {
     fontSize: 26,
