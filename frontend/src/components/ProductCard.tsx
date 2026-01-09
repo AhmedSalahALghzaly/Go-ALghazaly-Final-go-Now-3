@@ -224,7 +224,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart, 
           <Image
             source={{ uri: product.image_url }}
             style={styles.image}
-            resizeMode="cover"
+            contentFit="cover"
+            cachePolicy="disk"
+            placeholder={require('../../assets/placeholder-product.png')}
+            placeholderContentFit="contain"
+            transition={200}
           />
         ) : (
           <Ionicons name="cube-outline" size={48} color={colors.textSecondary} />
