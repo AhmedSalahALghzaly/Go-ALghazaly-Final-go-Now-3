@@ -131,6 +131,9 @@ export default function ProfileScreen() {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* App Version Info - Guest view */}
+          <AppVersionInfo compact />
         </View>
       </View>
     );
