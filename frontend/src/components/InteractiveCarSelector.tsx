@@ -623,11 +623,20 @@ export const InteractiveCarSelector: React.FC = () => {
           <FlatList
             data={filteredProducts}
             numColumns={2}
-            keyExtractor={(item) => item.id}
+            keyExtractor={useCallback((item: Product) => item.id, [])}
             contentContainerStyle={styles.productsGrid}
-            renderItem={({ item, index }) => (
+            removeClippedSubviews={true}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            initialNumToRender={6}
+            getItemLayout={useCallback((_, index) => ({
+              length: 180,
+              offset: 180 * Math.floor(index / 2),
+              index,
+            }), [])}
+            renderItem={useCallback(({ item, index }: { item: Product; index: number }) => (
               <Animated.View
-                entering={FadeIn.delay(index * 30).duration(200)}
+                entering={FadeIn.delay(Math.min(index * 30, 300)).duration(200)}
                 layout={Layout.springify()}
                 style={styles.productCardWrapper}
               >
@@ -640,7 +649,13 @@ export const InteractiveCarSelector: React.FC = () => {
                   activeOpacity={0.7}
                 >
                   {item.image_url ? (
-                    <Image source={{ uri: item.image_url }} style={styles.productImage} />
+                    <Image 
+                      source={{ uri: item.image_url }} 
+                      style={styles.productImage}
+                      contentFit="cover"
+                      cachePolicy="disk"
+                      transition={200}
+                    />
                   ) : (
                     <View style={[styles.productImagePlaceholder, { backgroundColor: mood?.primary + '10' }]}>
                       <Ionicons name="cube-outline" size={32} color={mood?.primary || colors.textSecondary} />
@@ -656,7 +671,7 @@ export const InteractiveCarSelector: React.FC = () => {
                   </View>
                 </TouchableOpacity>
               </Animated.View>
-            )}
+            ), [colors, mood, getName, handleProductPress, language])}
           />
         )}
       </Animated.View>
