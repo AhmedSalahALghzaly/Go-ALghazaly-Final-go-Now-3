@@ -7,7 +7,8 @@
  * - Product Brands: displays name + country of origin
  */
 import React, { useCallback } from 'react';
-import { View, Text, StyleSheet, Image, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -184,7 +185,9 @@ export const AnimatedBrandCard: React.FC<AnimatedBrandCardProps> = ({
             <Image
               source={{ uri: brandImageUrl }}
               style={styles.brandImage}
-              resizeMode="contain"
+              contentFit="contain"
+              cachePolicy="disk"
+              transition={200}
             />
           ) : (
             <View style={[styles.iconFallback, { backgroundColor: brandColor + '15' }]}>
