@@ -222,11 +222,14 @@ export const DynamicOfferSlider: React.FC<DynamicOfferSliderProps> = ({
     });
   };
 
-  const getTitle = (item: SliderItem) => language === 'ar' ? (item.title_ar || item.title) : item.title;
+  const getTitle = useCallback((item: SliderItem) => 
+    language === 'ar' ? (item.title_ar || item.title) : item.title, [language]);
   
-  const getColorPalette = (index: number) => COLOR_PALETTES[index % COLOR_PALETTES.length];
+  const getColorPalette = useCallback((index: number) => 
+    COLOR_PALETTES[index % COLOR_PALETTES.length], []);
   
-  const getImage = (item: SliderItem, index: number) => item.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length];
+  const getImage = useCallback((item: SliderItem, index: number) => 
+    item.image || FALLBACK_IMAGES[index % FALLBACK_IMAGES.length], []);
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
