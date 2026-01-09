@@ -427,7 +427,9 @@ export default function HomeScreen() {
                       <Image
                         source={{ uri: model.image_url }}
                         style={styles.carModelImage}
-                        resizeMode="cover"
+                        contentFit="cover"
+                        cachePolicy="disk"
+                        transition={200}
                       />
                     ) : (
                       <Ionicons name="car-sport" size={36} color={colors.textSecondary} />
