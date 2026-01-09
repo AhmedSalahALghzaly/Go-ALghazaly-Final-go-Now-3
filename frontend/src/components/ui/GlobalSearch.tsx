@@ -219,20 +219,23 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ visible, onClose }) 
           });
         }
       });
+      }
 
-      distributors.forEach((d: any) => {
-        if (fuzzyMatch(d.name || '', query) || fuzzyMatch(d.contact_email || '', query)) {
-          allResults.push({
-            id: d.id,
-            type: 'distributor',
-            title: d.name,
-            subtitle: d.contact_email || d.phone || '',
-            icon: 'send',
-            color: '#EC4899',
-            route: `/owner/distributors`,
-          });
-        }
-      });
+      if (Array.isArray(distributors)) {
+        distributors.forEach((d: any) => {
+          if (fuzzyMatch(d.name || '', query) || fuzzyMatch(d.contact_email || '', query)) {
+            allResults.push({
+              id: d.id,
+              type: 'distributor',
+              title: d.name,
+              subtitle: d.contact_email || d.phone || '',
+              icon: 'send',
+              color: '#EC4899',
+              route: `/owner/distributors`,
+            });
+          }
+        });
+      }
     }
 
     // === CUSTOMERS, ADMINS, PARTNERS (Owner/Partner only) ===
