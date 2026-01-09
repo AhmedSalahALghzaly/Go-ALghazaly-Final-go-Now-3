@@ -250,11 +250,11 @@ export const InteractiveCarSelector: React.FC = () => {
     setProducts([]);
   };
 
-  const getName = (item: { name: string; name_ar?: string }) =>
-    language === 'ar' ? (item.name_ar || item.name) : item.name;
+  const getName = useCallback((item: { name: string; name_ar?: string }) =>
+    language === 'ar' ? (item.name_ar || item.name) : item.name, [language]);
 
-  // Filter products
-  const filteredProducts = products.filter((p) => {
+  // Memoized filter products
+  const filteredProducts = useMemo(() => products.filter((p) => {
     const matchesSearch =
       searchQuery === '' ||
       p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -267,13 +267,13 @@ export const InteractiveCarSelector: React.FC = () => {
     else if (priceFilter === 'high') matchesPrice = p.price >= 500;
 
     return matchesSearch && matchesPrice;
-  });
+  }), [products, searchQuery, priceFilter]);
 
-  // Get filtered brands/models for grid
-  const displayBrands = carBrands.slice(0, GRID_COLUMNS * GRID_ROWS);
-  const filteredModels = selectedBrand
+  // Memoized filtered brands/models for grid
+  const displayBrands = useMemo(() => carBrands.slice(0, GRID_COLUMNS * GRID_ROWS), [carBrands]);
+  const filteredModels = useMemo(() => selectedBrand
     ? carModels.filter((m) => m.brand_id === selectedBrand.id).slice(0, GRID_COLUMNS * GRID_ROWS)
-    : [];
+    : [], [carModels, selectedBrand]);
 
   // Animated styles
   const carRotation = useAnimatedStyle(() => ({
