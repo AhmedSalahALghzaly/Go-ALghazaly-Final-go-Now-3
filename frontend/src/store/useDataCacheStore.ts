@@ -168,15 +168,21 @@ export const useDataCacheStore = create<DataCacheState>()(
       name: 'alghazaly-data-cache',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
+        // Essential sync data
         lastSyncTime: state.lastSyncTime,
         offlineActionsQueue: state.offlineActionsQueue,
-        carBrands: state.carBrands,
-        carModels: state.carModels,
-        productBrands: state.productBrands,
+        
+        // Essential cached data (limited size for performance)
+        carBrands: state.carBrands.slice(0, 100),
+        carModels: state.carModels.slice(0, 200),
+        productBrands: state.productBrands.slice(0, 50),
         categories: state.categories,
-        products: state.products,
-        suppliers: state.suppliers,
-        distributors: state.distributors,
+        
+        // Products: Only cache first 100 for offline display
+        products: state.products.slice(0, 100),
+        
+        // Don't persist large lists - they'll be fetched fresh
+        // suppliers, distributors, partners, admins, subscribers, customers, orders
       }),
     }
   )
