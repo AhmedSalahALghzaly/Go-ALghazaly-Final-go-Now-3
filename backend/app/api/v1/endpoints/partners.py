@@ -15,6 +15,7 @@ router = APIRouter(prefix="/partners")
 
 @router.get("")
 async def get_partners(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -26,6 +27,7 @@ async def get_partners(request: Request):
 
 @router.post("")
 async def add_partner(data: PartnerCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role != "owner":
@@ -49,6 +51,7 @@ async def add_partner(data: PartnerCreate, request: Request):
 
 @router.delete("/{partner_id}")
 async def delete_partner(partner_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role != "owner":

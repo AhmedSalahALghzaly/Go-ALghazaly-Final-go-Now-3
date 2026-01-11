@@ -14,6 +14,7 @@ router = APIRouter(prefix="/distributors")
 
 @router.get("")
 async def get_distributors(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin", "subscriber"]:
@@ -24,6 +25,7 @@ async def get_distributors(request: Request):
 
 @router.get("/{distributor_id}")
 async def get_distributor(distributor_id: str, request: Request):
+    db = get_database()
     distributor = await db.distributors.find_one({"_id": distributor_id})
     if not distributor:
         raise HTTPException(status_code=404, detail="Distributor not found")
@@ -31,6 +33,7 @@ async def get_distributor(distributor_id: str, request: Request):
 
 @router.post("")
 async def create_distributor(data: DistributorCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -56,6 +59,7 @@ async def create_distributor(data: DistributorCreate, request: Request):
 
 @router.put("/{distributor_id}")
 async def update_distributor(distributor_id: str, data: DistributorCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -78,6 +82,7 @@ async def update_distributor(distributor_id: str, data: DistributorCreate, reque
 
 @router.delete("/{distributor_id}")
 async def delete_distributor(distributor_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:

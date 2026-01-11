@@ -30,6 +30,7 @@ async def get_products(
     """
     Enhanced product listing with cursor-based pagination.
     - cursor: Product ID to start from (exclusive)
+    db = get_database()
     - direction: "next" for newer items (default), "prev" for older items
     """
     query = {"deleted_at": None}
@@ -126,6 +127,7 @@ async def get_products(
 
 @router.get("/search")
 async def search_products(q: str = Query(..., min_length=1), limit: int = 20):
+    db = get_database()
     regex = {"$regex": q, "$options": "i"}
     products = await db.products.find({"$and": [{"deleted_at": None}, {"$or": [{"name": regex}, {"name_ar": regex}, {"sku": regex}]}]}).limit(limit).to_list(limit)
     car_brands = await db.car_brands.find({"deleted_at": None, "$or": [{"name": regex}, {"name_ar": regex}]}).limit(5).to_list(5)
@@ -146,6 +148,7 @@ async def search_products(q: str = Query(..., min_length=1), limit: int = 20):
 
 @router.get("/all")
 async def get_all_products():
+    db = get_database()
     products = await db.products.find({"deleted_at": None}).sort("created_at", -1).to_list(10000)
     
     all_product_brands = await db.product_brands.find({"deleted_at": None}).to_list(1000)
@@ -179,6 +182,7 @@ async def get_all_products():
 
 @router.get("/{product_id}")
 async def get_product(product_id: str):
+    db = get_database()
     product = await db.products.find_one({"_id": product_id})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -196,6 +200,7 @@ async def get_product(product_id: str):
 
 @router.post("")
 async def create_product(product: ProductCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     admin_id = None
     if user:
@@ -218,6 +223,7 @@ async def create_product(product: ProductCreate, request: Request):
 
 @router.put("/{product_id}")
 async def update_product(product_id: str, product: ProductCreate):
+    db = get_database()
     await db.products.update_one(
         {"_id": product_id},
         {"$set": {**product.dict(), "updated_at": datetime.now(timezone.utc)}}
@@ -227,6 +233,7 @@ async def update_product(product_id: str, product: ProductCreate):
 
 @router.patch("/{product_id}/price")
 async def update_product_price(product_id: str, data: dict):
+    db = get_database()
     await db.products.update_one(
         {"_id": product_id},
         {"$set": {"price": data.get("price"), "updated_at": datetime.now(timezone.utc)}}
@@ -236,6 +243,7 @@ async def update_product_price(product_id: str, data: dict):
 
 @router.patch("/{product_id}/hidden")
 async def update_product_hidden(product_id: str, data: dict):
+    db = get_database()
     await db.products.update_one(
         {"_id": product_id},
         {"$set": {"hidden_status": data.get("hidden_status"), "updated_at": datetime.now(timezone.utc)}}
@@ -245,6 +253,7 @@ async def update_product_hidden(product_id: str, data: dict):
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: str):
+    db = get_database()
     await db.products.update_one(
         {"_id": product_id},
         {"$set": {"deleted_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}

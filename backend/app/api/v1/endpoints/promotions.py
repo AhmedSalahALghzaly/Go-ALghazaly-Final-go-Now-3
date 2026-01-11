@@ -17,6 +17,7 @@ router = APIRouter(prefix="/promotions")
 
 @router.get("")
 async def get_promotions(promotion_type: Optional[str] = None, active_only: bool = True):
+    db = get_database()
     query = {"deleted_at": None}
     if promotion_type:
         query["promotion_type"] = promotion_type
@@ -27,6 +28,7 @@ async def get_promotions(promotion_type: Optional[str] = None, active_only: bool
 
 @router.get("/{promotion_id}")
 async def get_promotion(promotion_id: str):
+    db = get_database()
     promotion = await db.promotions.find_one({"_id": promotion_id})
     if not promotion:
         raise HTTPException(status_code=404, detail="Promotion not found")
@@ -34,6 +36,7 @@ async def get_promotion(promotion_id: str):
 
 @router.post("")
 async def create_promotion(data: PromotionCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -52,6 +55,7 @@ async def create_promotion(data: PromotionCreate, request: Request):
 
 @router.put("/{promotion_id}")
 async def update_promotion(promotion_id: str, data: PromotionCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -66,6 +70,7 @@ async def update_promotion(promotion_id: str, data: PromotionCreate, request: Re
 
 @router.patch("/{promotion_id}/reorder")
 async def reorder_promotion(promotion_id: str, data: dict, request: Request):
+    db = get_database()
     await db.promotions.update_one(
         {"_id": promotion_id},
         {"$set": {"sort_order": data.get("sort_order", 0), "updated_at": datetime.now(timezone.utc)}}
@@ -74,6 +79,7 @@ async def reorder_promotion(promotion_id: str, data: dict, request: Request):
 
 @router.delete("/{promotion_id}")
 async def delete_promotion(promotion_id: str, request: Request):
+    db = get_database()
     logger.info(f"DELETE /promotions/{promotion_id} - Starting deletion request")
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"

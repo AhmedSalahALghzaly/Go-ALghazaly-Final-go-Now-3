@@ -12,6 +12,7 @@ router = APIRouter(prefix="/analytics")
 
 @router.get("/overview")
 async def get_analytics_overview(request: Request, start_date: Optional[str] = None, end_date: Optional[str] = None):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -139,6 +140,7 @@ async def get_analytics_overview(request: Request, start_date: Optional[str] = N
 
 @router.get("/collections")
 async def get_collections(request: Request, admin_id: Optional[str] = None):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:

@@ -17,6 +17,7 @@ router = APIRouter(prefix="/categories")
 
 @router.get("")
 async def get_categories(parent_id: Optional[str] = None):
+    db = get_database()
     query = {"deleted_at": None}
     if parent_id is None:
         query["parent_id"] = None
@@ -27,11 +28,13 @@ async def get_categories(parent_id: Optional[str] = None):
 
 @router.get("/all")
 async def get_all_categories():
+    db = get_database()
     categories = await db.categories.find({"deleted_at": None}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
     return [serialize_doc(c) for c in categories]
 
 @router.get("/tree")
 async def get_categories_tree():
+    db = get_database()
     categories = await db.categories.find({"deleted_at": None}).sort([("sort_order", 1), ("name", 1)]).to_list(1000)
     all_cats = [serialize_doc(c) for c in categories]
     cats_by_id = {c["id"]: {**c, "children": []} for c in all_cats}
@@ -45,6 +48,7 @@ async def get_categories_tree():
 
 @router.post("")
 async def create_category(category: CategoryCreate):
+    db = get_database()
     logger.info(f"Creating category: {category.name}, image_data present: {bool(category.image_data)}")
     doc = {
         "_id": f"cat_{uuid.uuid4().hex[:8]}",
@@ -60,6 +64,7 @@ async def create_category(category: CategoryCreate):
 
 @router.delete("/{cat_id}")
 async def delete_category(cat_id: str):
+    db = get_database()
     await db.categories.update_one(
         {"_id": cat_id},
         {"$set": {"deleted_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}

@@ -22,6 +22,7 @@ async def get_customers(request: Request):
     for u in users:
         user_data = serialize_doc(u)
         order_count = await db.orders.count_documents({"user_id": u["_id"], "deleted_at": None})
+    db = get_database()
         total_spent = 0
         orders = await db.orders.find({"user_id": u["_id"], "status": "delivered"}).to_list(1000)
         for o in orders:
@@ -40,6 +41,7 @@ async def get_customer(customer_id: str, request: Request):
         raise HTTPException(status_code=403, detail="Access denied")
     
     customer = await db.users.find_one({"_id": customer_id})
+    db = get_database()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     
@@ -48,6 +50,7 @@ async def get_customer(customer_id: str, request: Request):
 # Admin customer data endpoints
 @router.get("/admin/customer/{customer_id}/favorites")
 async def get_customer_favorites(customer_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -63,6 +66,7 @@ async def get_customer_favorites(customer_id: str, request: Request):
 
 @router.get("/admin/customer/{customer_id}/cart")
 async def get_customer_cart(customer_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -81,6 +85,7 @@ async def get_customer_cart(customer_id: str, request: Request):
 
 @router.get("/admin/customer/{customer_id}/orders")
 async def get_customer_orders(customer_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:

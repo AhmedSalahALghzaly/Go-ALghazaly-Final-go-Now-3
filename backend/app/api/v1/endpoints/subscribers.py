@@ -17,6 +17,7 @@ router = APIRouter()
 # Subscriber routes
 @router.get("/subscribers")
 async def get_subscribers(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -27,6 +28,7 @@ async def get_subscribers(request: Request):
 
 @router.post("/subscribers")
 async def add_subscriber(data: SubscriberCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -50,6 +52,7 @@ async def add_subscriber(data: SubscriberCreate, request: Request):
 
 @router.delete("/subscribers/{subscriber_id}")
 async def delete_subscriber(subscriber_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -62,6 +65,7 @@ async def delete_subscriber(subscriber_id: str, request: Request):
 # Subscription Request routes
 @router.get("/subscription-requests")
 async def get_subscription_requests(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -72,6 +76,7 @@ async def get_subscription_requests(request: Request):
 
 @router.post("/subscription-requests")
 async def create_subscription_request(data: SubscriptionRequestCreate):
+    db = get_database()
     request_doc = {
         "_id": str(uuid.uuid4()),
         **data.dict(),
@@ -96,6 +101,7 @@ async def create_subscription_request(data: SubscriptionRequestCreate):
 
 @router.patch("/subscription-requests/{request_id}/approve")
 async def approve_subscription_request(request_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:
@@ -109,6 +115,7 @@ async def approve_subscription_request(request_id: str, request: Request):
 
 @router.delete("/subscription-requests/{request_id}")
 async def delete_subscription_request(request_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner"]:

@@ -10,6 +10,7 @@ router = APIRouter(prefix="/notifications")
 
 @router.get("")
 async def get_notifications(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -19,6 +20,7 @@ async def get_notifications(request: Request):
 
 @router.patch("/{notification_id}/read")
 async def mark_notification_read(notification_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -31,6 +33,7 @@ async def mark_notification_read(notification_id: str, request: Request):
 
 @router.post("/mark-all-read")
 async def mark_all_read(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")

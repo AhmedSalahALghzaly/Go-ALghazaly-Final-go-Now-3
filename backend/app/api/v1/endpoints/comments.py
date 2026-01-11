@@ -13,6 +13,7 @@ router = APIRouter()
 
 @router.get("/products/{product_id}/comments")
 async def get_comments(product_id: str, request: Request, skip: int = 0, limit: int = 50):
+    db = get_database()
     user = await get_current_user(request)
     user_id = user["id"] if user else None
     
@@ -35,6 +36,7 @@ async def get_comments(product_id: str, request: Request, skip: int = 0, limit: 
 
 @router.post("/products/{product_id}/comments")
 async def add_comment(product_id: str, data: CommentCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")

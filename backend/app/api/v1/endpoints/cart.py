@@ -19,6 +19,7 @@ async def get_cart(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     cart = await db.carts.find_one({"user_id": user["id"]})
+    db = get_database()
     if not cart:
         return {
             "user_id": user["id"],
@@ -75,6 +76,7 @@ async def add_to_cart(item: CartItemAdd, request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     product = await db.products.find_one({"_id": item.product_id})
+    db = get_database()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -152,6 +154,7 @@ async def update_cart(item: CartItemAdd, request: Request):
             {
                 "$pull": {"items": {"product_id": item.product_id}},
                 "$set": {"updated_at": datetime.now(timezone.utc)}
+    db = get_database()
             }
         )
     else:
@@ -174,6 +177,7 @@ async def add_to_cart_enhanced(item: CartItemAddEnhanced, request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     product = await db.products.find_one({"_id": item.product_id})
+    db = get_database()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     
@@ -209,6 +213,7 @@ async def add_to_cart_enhanced(item: CartItemAddEnhanced, request: Request):
 
 @router.delete("/clear")
 async def clear_cart(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -226,6 +231,7 @@ async def void_bundle_discount(bundle_group_id: str, request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     cart = await db.carts.find_one({"user_id": user["id"]})
+    db = get_database()
     if not cart:
         return {"message": "Cart not found"}
     
@@ -251,6 +257,7 @@ async def validate_cart_stock(request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     cart = await db.carts.find_one({"user_id": user["id"]})
+    db = get_database()
     if not cart or not cart.get("items"):
         return {"valid": True, "invalid_items": [], "message": "Cart is empty"}
     

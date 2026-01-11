@@ -14,6 +14,7 @@ router = APIRouter(prefix="/car-brands")
 
 @router.get("")
 async def get_car_brands():
+    db = get_database()
     brands = await db.car_brands.find({"deleted_at": None}).sort("name", 1).to_list(1000)
     result = []
     for b in brands:
@@ -26,6 +27,7 @@ async def get_car_brands():
 
 @router.post("")
 async def create_car_brand(brand: CarBrandCreate):
+    db = get_database()
     doc = {
         "_id": f"cb_{uuid.uuid4().hex[:8]}",
         **brand.dict(),
@@ -39,6 +41,7 @@ async def create_car_brand(brand: CarBrandCreate):
 
 @router.delete("/{brand_id}")
 async def delete_car_brand(brand_id: str):
+    db = get_database()
     await db.car_brands.update_one(
         {"_id": brand_id},
         {"$set": {"deleted_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}

@@ -37,6 +37,7 @@ async def get_orders(
     # Cursor-based pagination
     if cursor:
         cursor_doc = await db.orders.find_one({"_id": cursor})
+    db = get_database()
         if cursor_doc:
             cursor_created_at = cursor_doc.get("created_at")
             if direction == "next":
@@ -89,6 +90,7 @@ async def get_all_orders(request: Request, status: Optional[str] = None):
     
     orders = await db.orders.find(query).sort("created_at", -1).to_list(10000)
     return {"orders": [serialize_doc(o) for o in orders]}
+    db = get_database()
 
 @router.get("/{order_id}")
 async def get_order(order_id: str, request: Request):
@@ -97,6 +99,7 @@ async def get_order(order_id: str, request: Request):
     role = await get_user_role(user) if user else "guest"
     
     order = await db.orders.find_one({"_id": order_id})
+    db = get_database()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -127,6 +130,7 @@ async def create_order(data: OrderCreate, request: Request):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     cart = await db.carts.find_one({"user_id": user["id"]})
+    db = get_database()
     if not cart or not cart.get("items"):
         raise HTTPException(status_code=400, detail="Cart is empty")
     
@@ -222,6 +226,7 @@ async def update_order_status(order_id: str, status: str, request: Request):
         raise HTTPException(status_code=403, detail="Access denied")
     
     order = await db.orders.find_one({"_id": order_id})
+    db = get_database()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -263,6 +268,7 @@ async def update_order_discount(order_id: str, request: Request):
         raise HTTPException(status_code=400, detail="Discount cannot be negative")
     
     order = await db.orders.find_one({"_id": order_id})
+    db = get_database()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -287,6 +293,7 @@ async def delete_order(order_id: str, request: Request):
         raise HTTPException(status_code=403, detail="Only owner can delete orders")
     
     order = await db.orders.find_one({"_id": order_id})
+    db = get_database()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     
@@ -312,6 +319,7 @@ async def create_admin_order(data: AdminOrderCreate, request: Request):
     
     for item_data in data.items:
         product = await db.products.find_one({"_id": item_data.get("product_id")})
+    db = get_database()
         if not product:
             continue
         
@@ -382,6 +390,7 @@ async def get_admin_order_detail(order_id: str, request: Request):
     role = await get_user_role(user) if user else "guest"
     
     order = await db.orders.find_one({"_id": order_id})
+    db = get_database()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     

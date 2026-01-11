@@ -15,6 +15,7 @@ router = APIRouter(prefix="/car-models")
 
 @router.get("")
 async def get_car_models(brand_id: Optional[str] = None):
+    db = get_database()
     query = {"deleted_at": None}
     if brand_id:
         query["brand_id"] = brand_id
@@ -23,6 +24,7 @@ async def get_car_models(brand_id: Optional[str] = None):
 
 @router.get("/{model_id}")
 async def get_car_model(model_id: str):
+    db = get_database()
     model = await db.car_models.find_one({"_id": model_id})
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
@@ -44,6 +46,7 @@ async def get_car_model(model_id: str):
 
 @router.post("")
 async def create_car_model(model: CarModelCreate):
+    db = get_database()
     doc = {
         "_id": f"cm_{uuid.uuid4().hex[:8]}",
         **model.dict(),
@@ -57,6 +60,7 @@ async def create_car_model(model: CarModelCreate):
 
 @router.put("/{model_id}")
 async def update_car_model(model_id: str, model: CarModelCreate):
+    db = get_database()
     await db.car_models.update_one(
         {"_id": model_id},
         {"$set": {**model.dict(), "updated_at": datetime.now(timezone.utc)}}
@@ -66,6 +70,7 @@ async def update_car_model(model_id: str, model: CarModelCreate):
 
 @router.delete("/{model_id}")
 async def delete_car_model(model_id: str):
+    db = get_database()
     await db.car_models.update_one(
         {"_id": model_id},
         {"$set": {"deleted_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc)}}

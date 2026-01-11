@@ -14,6 +14,7 @@ router = APIRouter(prefix="/auth")
 @router.post("/session")
 async def exchange_session(request: Request, response: Response):
     db = get_database()
+    db = get_database()
     body = await request.json()
     session_id = body.get("session_id")
     if not session_id:
@@ -70,6 +71,7 @@ async def exchange_session(request: Request, response: Response):
 
 @router.get("/me")
 async def get_me(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -78,6 +80,7 @@ async def get_me(request: Request):
 
 @router.post("/logout")
 async def logout(request: Request, response: Response):
+    db = get_database()
     db = get_database()
     token = await get_session_token(request)
     if token:

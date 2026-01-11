@@ -21,6 +21,7 @@ async def get_home_slider():
     }).sort("sort_order", 1).to_list(10)
     
     for idx, promo in enumerate(promotions):
+    db = get_database()
         target_product = None
         if promo.get("target_product_id"):
             target_product = await db.products.find_one({"_id": promo["target_product_id"]})

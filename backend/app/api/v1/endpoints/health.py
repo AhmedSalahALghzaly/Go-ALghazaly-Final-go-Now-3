@@ -21,6 +21,7 @@ async def get_version():
     return {
         "api_version": APP_VERSION,
         "build_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    db = get_database()
         "min_frontend_version": MIN_FRONTEND_VERSION,
         "features": [
             "cursor_pagination",
@@ -41,6 +42,7 @@ async def health_check():
         mongo_status = "healthy"
     except Exception as e:
         mongo_status = f"unhealthy: {str(e)}"
+    db = get_database()
     
     return {
         "status": "healthy" if mongo_status == "healthy" else "degraded",
@@ -55,6 +57,7 @@ async def export_database(request: Request, export_config: ExportRequest = None)
     """Export MongoDB collections for database seeding."""
     user = await get_current_user(request)
     if not user or user.get("email") != PRIMARY_OWNER_EMAIL:
+    db = get_database()
         raise HTTPException(status_code=403, detail="Admin access required")
     
     exportable_collections = [
@@ -100,6 +103,7 @@ async def import_database(request: Request, import_config: ImportRequest):
     """Import database seed data."""
     user = await get_current_user(request)
     if not user or user.get("email") != PRIMARY_OWNER_EMAIL:
+    db = get_database()
         raise HTTPException(status_code=403, detail="Admin access required")
     
     import_data = import_config.data
@@ -144,6 +148,7 @@ async def get_database_stats(request: Request):
     """Get database statistics."""
     user = await get_current_user(request)
     if not user or user.get("email") != PRIMARY_OWNER_EMAIL:
+    db = get_database()
         raise HTTPException(status_code=403, detail="Admin access required")
     
     stats = {}
@@ -169,6 +174,7 @@ async def clear_server_cache(request: Request):
     """Clear server-side caches."""
     user = await get_current_user(request)
     if not user or user.get("email") != PRIMARY_OWNER_EMAIL:
+    db = get_database()
         raise HTTPException(status_code=403, detail="Admin access required")
     
     return {
@@ -183,6 +189,7 @@ async def get_deployment_checklist(request: Request):
     """Get deployment readiness checklist."""
     user = await get_current_user(request)
     if not user or user.get("email") != PRIMARY_OWNER_EMAIL:
+    db = get_database()
         raise HTTPException(status_code=403, detail="Admin access required")
     
     checks = []

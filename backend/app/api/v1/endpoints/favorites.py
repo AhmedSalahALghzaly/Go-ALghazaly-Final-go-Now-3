@@ -13,6 +13,7 @@ router = APIRouter(prefix="/favorites")
 
 @router.get("")
 async def get_favorites(request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -27,6 +28,7 @@ async def get_favorites(request: Request):
 
 @router.get("/check/{product_id}")
 async def check_favorite(product_id: str, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -36,6 +38,7 @@ async def check_favorite(product_id: str, request: Request):
 
 @router.post("/toggle")
 async def toggle_favorite(data: FavoriteAdd, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")

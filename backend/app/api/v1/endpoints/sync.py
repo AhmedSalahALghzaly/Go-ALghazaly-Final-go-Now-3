@@ -18,6 +18,7 @@ def get_timestamp_ms():
 
 @router.post("/sync/pull")
 async def sync_pull(data: SyncPullRequest):
+    db = get_database()
     result = {}
     tables = data.tables or ["car_brands", "car_models", "product_brands", "categories", "products"]
     
@@ -37,6 +38,7 @@ async def sync_pull(data: SyncPullRequest):
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, user_id: Optional[str] = None):
+    db = get_database()
     await manager.connect(websocket, user_id)
     try:
         while True:

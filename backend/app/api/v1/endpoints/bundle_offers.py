@@ -16,6 +16,7 @@ router = APIRouter(prefix="/bundle-offers")
 
 @router.get("")
 async def get_bundle_offers(active_only: bool = True):
+    db = get_database()
     query = {"deleted_at": None}
     if active_only:
         query["is_active"] = True
@@ -31,6 +32,7 @@ async def get_bundle_offers(active_only: bool = True):
 
 @router.get("/{offer_id}")
 async def get_bundle_offer(offer_id: str):
+    db = get_database()
     offer = await db.bundle_offers.find_one({"_id": offer_id})
     if not offer:
         raise HTTPException(status_code=404, detail="Bundle offer not found")
@@ -42,6 +44,7 @@ async def get_bundle_offer(offer_id: str):
 
 @router.post("")
 async def create_bundle_offer(data: BundleOfferCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -60,6 +63,7 @@ async def create_bundle_offer(data: BundleOfferCreate, request: Request):
 
 @router.put("/{offer_id}")
 async def update_bundle_offer(offer_id: str, data: BundleOfferCreate, request: Request):
+    db = get_database()
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
     if role not in ["owner", "partner", "admin"]:
@@ -74,6 +78,7 @@ async def update_bundle_offer(offer_id: str, data: BundleOfferCreate, request: R
 
 @router.delete("/{offer_id}")
 async def delete_bundle_offer(offer_id: str, request: Request):
+    db = get_database()
     logger.info(f"DELETE /bundle-offers/{offer_id} - Starting deletion request")
     user = await get_current_user(request)
     role = await get_user_role(user) if user else "guest"
