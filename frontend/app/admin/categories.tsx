@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { categoriesApi } from '../../src/services/api';
+import { useAdminSync } from '../../src/services/adminSyncService';
 import { Header } from '../../src/components/Header';
 import { ImageUploader } from '../../src/components/ui/ImageUploader';
 import { Toast } from '../../src/components/ui/FormFeedback';
