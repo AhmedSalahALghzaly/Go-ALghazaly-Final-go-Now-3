@@ -27,11 +27,11 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager for startup/shutdown events"""
     # Startup
     logger.info(f"Starting Al-Ghazaly Auto Parts API v{APP_VERSION} - Modular Architecture")
-    await connect_to_mongo()
+    database = await connect_to_mongo()
     await create_database_indexes()
     
     # Seed initial data if needed
-    existing_brands = await db.car_brands.count_documents({})
+    existing_brands = await database.car_brands.count_documents({})
     if existing_brands == 0:
         logger.info("Seeding database...")
         await seed_database()
