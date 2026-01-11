@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useTranslation } from '../../src/hooks/useTranslation';
 import { productsApi, productBrandsApi, categoriesApi, carModelsApi, carBrandsApi } from '../../src/services/api';
+import { useAdminSync } from '../../src/services/adminSyncService';
+import { useDataCacheStore } from '../../src/store/useDataCacheStore';
 import { Header } from '../../src/components/Header';
 import { ImageUploader } from '../../src/components/ui/ImageUploader';
 import { Toast, SaveButton } from '../../src/components/ui/FormFeedback';
