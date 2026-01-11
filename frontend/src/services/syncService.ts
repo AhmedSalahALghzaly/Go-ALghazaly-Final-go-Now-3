@@ -296,6 +296,9 @@ class SyncService {
         const productsRes = await productApi.getAll({ limit: 1000 });
         const products = productsRes.data?.products || [];
         
+        // Extract server product IDs for purging
+        const serverProductIds = products.map((p: any) => p.id);
+        
         // Check for conflicts with locally modified products
         const localProducts = store.products || [];
         for (const serverProduct of products) {
@@ -317,6 +320,12 @@ class SyncService {
         
         store.setProducts(products);
         cacheStore.setProducts(products);
+        
+        // Purge deleted products from local cache (Zero-Waste Policy)
+        if (serverProductIds.length > 0) {
+          cacheStore.purgeDeletedItems({ products: serverProductIds });
+        }
+        
         syncResults.push({ resource: 'products', success: true, itemCount: products.length, timestamp: Date.now() });
       } catch (error: any) {
         console.error('[SyncService] Failed to sync products:', error.message);
