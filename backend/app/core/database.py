@@ -12,19 +12,36 @@ logger = logging.getLogger(__name__)
 
 # Global database references
 client: AsyncIOMotorClient = None
-db: AsyncIOMotorDatabase = None
+_db: AsyncIOMotorDatabase = None
+
+class DatabaseProxy:
+    """Proxy class that allows importing 'db' at module level but accessing the actual database at runtime"""
+    def __getattr__(self, name):
+        global _db
+        if _db is None:
+            raise RuntimeError("Database not connected. Call connect_to_mongo first.")
+        return getattr(_db, name)
+    
+    def __getitem__(self, name):
+        global _db
+        if _db is None:
+            raise RuntimeError("Database not connected. Call connect_to_mongo first.")
+        return _db[name]
+
+# This 'db' can be safely imported at module level
+db = DatabaseProxy()
 
 async def connect_to_mongo():
     """Connect to MongoDB and return database instance"""
-    global client, db
+    global client, _db
     client = AsyncIOMotorClient(settings.MONGO_URL)
-    db = client[settings.DB_NAME]
+    _db = client[settings.DB_NAME]
     logger.info(f"Connected to MongoDB - ALghazaly Auto Parts API v4.1")
-    return db
+    return _db
 
 def get_database():
     """Get the database instance - for use in modules that need direct access"""
-    return db
+    return _db
 
 async def close_mongo_connection():
     """Close MongoDB connection"""
