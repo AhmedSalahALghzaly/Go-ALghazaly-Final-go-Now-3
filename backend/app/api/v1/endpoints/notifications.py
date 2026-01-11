@@ -3,7 +3,7 @@ Notification Routes
 """
 from fastapi import APIRouter, HTTPException, Request
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, serialize_doc
 
 router = APIRouter(prefix="/notifications")

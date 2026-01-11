@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import uuid
 import logging
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, get_user_role, serialize_doc
 from ....models.schemas import PromotionCreate
 from ....services.websocket import manager

@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timezone
 import uuid
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.config import settings
 from ....core.security import get_current_user, get_user_role, serialize_doc
 from ....models.schemas import OrderCreate, AdminOrderCreate, AdminAssistedOrderCreate

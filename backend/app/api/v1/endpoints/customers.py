@@ -4,7 +4,7 @@ Customer Routes
 from fastapi import APIRouter, HTTPException, Request
 from typing import Optional
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, get_user_role, serialize_doc
 
 router = APIRouter(prefix="/customers")

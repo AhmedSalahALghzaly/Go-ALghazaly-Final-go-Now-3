@@ -3,7 +3,7 @@ Marketing Routes (Home Slider)
 """
 from fastapi import APIRouter
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import serialize_doc
 
 router = APIRouter(prefix="/marketing")

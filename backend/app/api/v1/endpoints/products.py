@@ -6,7 +6,7 @@ from typing import Optional
 from datetime import datetime, timezone
 import uuid
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, serialize_doc
 from ....models.schemas import ProductCreate
 from ....services.websocket import manager

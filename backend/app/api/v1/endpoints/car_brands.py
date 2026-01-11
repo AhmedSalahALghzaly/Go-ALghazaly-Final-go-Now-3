@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from datetime import datetime, timezone
 import uuid
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import serialize_doc
 from ....models.schemas import CarBrandCreate
 from ....services.websocket import manager

@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 import httpx
 import uuid
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, get_user_role, get_session_token, serialize_doc
 
 router = APIRouter(prefix="/auth")

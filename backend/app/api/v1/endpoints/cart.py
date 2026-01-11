@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from datetime import datetime, timezone
 import uuid
 
-from ....core.database import get_database
+from ....core.database import db
 from ....core.security import get_current_user, serialize_doc
 from ....models.schemas import CartItemAdd, CartItemAddEnhanced
 
