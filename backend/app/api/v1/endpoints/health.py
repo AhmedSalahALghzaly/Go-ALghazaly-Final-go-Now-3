@@ -5,12 +5,15 @@ from fastapi import APIRouter, HTTPException, Request
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 
-from ....core.database import db
+from ....core.database import get_database
 from ....core.config import APP_VERSION, MIN_FRONTEND_VERSION, PRIMARY_OWNER_EMAIL
 from ....core.security import get_current_user, serialize_doc
 from ....models.schemas import VersionInfo, ExportRequest, ImportRequest
 
 router = APIRouter()
+
+def get_db():
+    return get_database()
 
 @router.get("/version", response_model=VersionInfo)
 async def get_version():
