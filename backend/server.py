@@ -1767,6 +1767,59 @@ async def get_all_orders(request: Request):
     orders = await db.orders.find({}).sort("created_at", -1).to_list(10000)
     return {"orders": [serialize_doc(o) for o in orders], "total": len(orders)}
 
+@api_router.post("/cart/validate-stock")
+async def validate_cart_stock(request: Request):
+    """
+    Validate cart items against real-time stock in MongoDB
+    Returns list of items with insufficient stock
+    This should be called before checkout to ensure stock availability
+    """
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    cart = await db.carts.find_one({"user_id": user["id"]})
+    if not cart or not cart.get("items"):
+        return {"valid": True, "invalid_items": [], "message": "Cart is empty"}
+    
+    invalid_items = []
+    valid_items = []
+    
+    for item in cart.get("items", []):
+        product = await db.products.find_one({"_id": item["product_id"]})
+        if not product:
+            invalid_items.append({
+                "product_id": item["product_id"],
+                "reason": "product_not_found",
+                "requested_quantity": item["quantity"],
+                "available_stock": 0
+            })
+        elif product.get("stock_quantity", 0) < item["quantity"]:
+            invalid_items.append({
+                "product_id": item["product_id"],
+                "product_name": product.get("name"),
+                "reason": "insufficient_stock",
+                "requested_quantity": item["quantity"],
+                "available_stock": product.get("stock_quantity", 0)
+            })
+        else:
+            valid_items.append({
+                "product_id": item["product_id"],
+                "product_name": product.get("name"),
+                "requested_quantity": item["quantity"],
+                "available_stock": product.get("stock_quantity", 0)
+            })
+    
+    is_valid = len(invalid_items) == 0
+    
+    return {
+        "valid": is_valid,
+        "invalid_items": invalid_items,
+        "valid_items": valid_items,
+        "total_items": len(cart.get("items", [])),
+        "message": "All items available" if is_valid else f"{len(invalid_items)} item(s) have stock issues"
+    }
+
 @api_router.post("/orders")
 async def create_order(order_data: OrderCreate, request: Request):
     """Create order using server-side cart prices (Unified Cart System)"""
