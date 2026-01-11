@@ -253,21 +253,21 @@ class BackendTester:
     def test_cart_endpoints_unauthenticated(self):
         """Test cart endpoints without authentication (should fail)"""
         cart_endpoints = [
-            ("GET", "/cart", "Get Cart"),
-            ("POST", "/cart/add", "Add to Cart"),
-            ("PUT", "/cart/update", "Update Cart"),
-            ("DELETE", "/cart/clear", "Clear Cart"),
-            ("POST", "/cart/validate-stock", "Validate Stock")
+            ("GET", "/cart", "Get Cart", {}),
+            ("POST", "/cart/add", "Add to Cart", {"product_id": "test_prod", "quantity": 1}),
+            ("PUT", "/cart/update", "Update Cart", {"product_id": "test_prod", "quantity": 2}),
+            ("DELETE", "/cart/clear", "Clear Cart", {}),
+            ("POST", "/cart/validate-stock", "Validate Stock", {})
         ]
         
-        for method, endpoint, name in cart_endpoints:
+        for method, endpoint, name, payload in cart_endpoints:
             try:
                 if method == "GET":
                     response = self.session.get(f"{API_BASE}{endpoint}")
                 elif method == "POST":
-                    response = self.session.post(f"{API_BASE}{endpoint}", json={})
+                    response = self.session.post(f"{API_BASE}{endpoint}", json=payload)
                 elif method == "PUT":
-                    response = self.session.put(f"{API_BASE}{endpoint}", json={})
+                    response = self.session.put(f"{API_BASE}{endpoint}", json=payload)
                 elif method == "DELETE":
                     response = self.session.delete(f"{API_BASE}{endpoint}")
                 
